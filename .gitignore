@@ -46,3 +46,4 @@ client_secret*.json
 next-env.d.ts
 
 .vercel
+.env*
