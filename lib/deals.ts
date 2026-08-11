@@ -30,7 +30,9 @@ export const DEALS: Deal[] = [
     companyKo: "제스트",
     companyEn: "Zest",
     market: "domestic",
-    readsSampleDriveFolder: true,
+    // Off deliberately: the tracker should reflect what the company actually
+    // uploaded, not the mentor's sample folder. Set to true to count Drive too.
+    readsSampleDriveFolder: false,
   },
   {
     id: "demo-overseas",
