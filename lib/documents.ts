@@ -18,6 +18,8 @@ export type RequiredDocument = {
   nameEn: string;
   /** Format requirements from the source list, e.g. [원본대조필]. */
   note?: string;
+  /** The same note in English. Falls back to `note` when absent. */
+  noteEn?: string;
   /** Optional / "해당 시" documents don't count toward the missing total. */
   optional?: boolean;
   /**
@@ -38,6 +40,7 @@ export const DOMESTIC_DOCUMENTS: RequiredDocument[] = [
     nameKo: "최신 사업소개서 (IR덱)",
     nameEn: "Latest IR Deck",
     note: "PDF 형식",
+    noteEn: "PDF format",
     keywords: ["사업소개서", "회사소개서", "irdeck", "ir덱", "ir자료", "pitchdeck"],
   },
   {
@@ -45,6 +48,7 @@ export const DOMESTIC_DOCUMENTS: RequiredDocument[] = [
     nameKo: "사업자등록증",
     nameEn: "Business Registration Certificate",
     note: "원본대조필",
+    noteEn: "Certified true copy",
     keywords: ["사업자등록", "businessregistration"],
   },
   {
@@ -52,6 +56,7 @@ export const DOMESTIC_DOCUMENTS: RequiredDocument[] = [
     nameKo: "등기부등본",
     nameEn: "Corporate Registry Extract",
     note: "원본, 말소사항 포함",
+    noteEn: "Original, including cancelled entries",
     keywords: [
       "등기사항전부증명서",
       "등기사항증명서",
@@ -65,6 +70,7 @@ export const DOMESTIC_DOCUMENTS: RequiredDocument[] = [
     nameKo: "정관",
     nameEn: "Articles of Incorporation",
     note: "원본대조필",
+    noteEn: "Certified true copy",
     keywords: ["정관", "articlesofincorporation"],
   },
   {
@@ -72,6 +78,7 @@ export const DOMESTIC_DOCUMENTS: RequiredDocument[] = [
     nameKo: "법인 인감증명서",
     nameEn: "Corporate Seal Certificate",
     note: "원본",
+    noteEn: "Original",
     keywords: ["인감증명", "법인인감", "corporateseal"],
   },
   {
@@ -85,6 +92,7 @@ export const DOMESTIC_DOCUMENTS: RequiredDocument[] = [
     nameKo: "4대보험 가입자명부",
     nameEn: "Social Insurance Enrollment List",
     note: "원본대조필",
+    noteEn: "Certified true copy",
     keywords: ["4대보험", "사대보험", "socialinsurance"],
   },
   {
@@ -92,6 +100,7 @@ export const DOMESTIC_DOCUMENTS: RequiredDocument[] = [
     nameKo: "스톡옵션 수여자 명단 및 상세",
     nameEn: "Stock Option Grantee List",
     note: "성명·생년월일·자격·부여방법·행사가격·부여주식수·행사가능기간",
+    noteEn: "Name, DOB, eligibility, grant method, exercise price, shares granted, exercise window",
     keywords: ["스톡옵션", "주식매수선택권", "stockoption"],
   },
   {
@@ -99,6 +108,7 @@ export const DOMESTIC_DOCUMENTS: RequiredDocument[] = [
     nameKo: "법인 통장사본",
     nameEn: "Corporate Bank Account Copy",
     note: "투자금 납입용",
+    noteEn: "For receiving the investment",
     keywords: ["통장사본", "법인통장", "bankaccount", "bankbook"],
   },
   {
@@ -112,6 +122,7 @@ export const DOMESTIC_DOCUMENTS: RequiredDocument[] = [
     nameKo: "재무제표",
     nameEn: "Financial Statements",
     note: "전기·당기 포함",
+    noteEn: "Prior and current year",
     keywords: ["재무제표", "감사보고서", "financialstatement"],
   },
   {
@@ -131,6 +142,7 @@ export const DOMESTIC_DOCUMENTS: RequiredDocument[] = [
     nameKo: "매출 추정 (향후 5개년)",
     nameEn: "Revenue Forecast (5 years)",
     note: "Excel로 작성",
+    noteEn: "Written in Excel",
     keywords: ["매출추정", "매출전망", "revenueforecast", "매출계획"],
   },
   {
@@ -138,6 +150,7 @@ export const DOMESTIC_DOCUMENTS: RequiredDocument[] = [
     nameKo: "대표자 신분증 및 주민등록등본",
     nameEn: "CEO ID & Resident Registration",
     note: "사본",
+    noteEn: "Photocopy",
     keywords: ["신분증", "주민등록등본", "주민등록초본"],
   },
   {
@@ -145,6 +158,7 @@ export const DOMESTIC_DOCUMENTS: RequiredDocument[] = [
     nameKo: "주주간 계약서",
     nameEn: "Shareholders' Agreement",
     note: "지정 양식 참조",
+    noteEn: "Use the designated template",
     keywords: ["주주간계약", "주주간협약", "shareholdersagreement"],
   },
   {
@@ -166,6 +180,7 @@ export const DOMESTIC_DOCUMENTS: RequiredDocument[] = [
     nameKo: "벤처기업확인증 / 중소기업확인서 / 창업기업확인서",
     nameEn: "Venture / SME / Startup Certificate",
     note: "해당 시 · LP 세제혜택 관련",
+    noteEn: "If applicable - relates to LP tax benefits",
     optional: true,
     keywords: ["벤처기업확인", "중소기업확인", "창업기업확인"],
   },
@@ -174,6 +189,7 @@ export const DOMESTIC_DOCUMENTS: RequiredDocument[] = [
     nameKo: "특허 등록 또는 출원서",
     nameEn: "Patent Registrations / Applications",
     note: "해당 시",
+    noteEn: "If applicable",
     optional: true,
     keywords: ["특허", "patent"],
   },
@@ -182,6 +198,7 @@ export const DOMESTIC_DOCUMENTS: RequiredDocument[] = [
     nameKo: "상표 등록 또는 출원서",
     nameEn: "Trademark Registrations / Applications",
     note: "해당 시",
+    noteEn: "If applicable",
     optional: true,
     keywords: ["상표", "trademark"],
   },
@@ -234,6 +251,7 @@ export const OVERSEAS_DOCUMENTS: RequiredDocument[] = [
     nameKo: "주주명부",
     nameEn: "Shareholder List",
     note: "신주발행 투자 및 SAFE 투자자 모두 포함",
+    noteEn: "Include both new-share and SAFE investors",
     keywords: ["shareholderlist", "shareholderregistry", "주주명부"],
   },
   {

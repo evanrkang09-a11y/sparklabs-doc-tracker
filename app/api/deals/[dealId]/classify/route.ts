@@ -39,15 +39,19 @@ export async function POST(
 
     const guesses = await classifyFilenames(filenames, deal.market);
     const namesById = new Map(
-      documentsFor(deal.market).map((doc) => [doc.id, doc.nameKo]),
+      documentsFor(deal.market).map((doc) => [doc.id, doc]),
     );
 
     const suggestions = guesses
       .filter((guess) => guess.documentId && guess.confidence >= MIN_CONFIDENCE)
-      .map((guess) => ({
-        ...guess,
-        documentNameKo: namesById.get(guess.documentId!) ?? guess.documentId,
-      }));
+      .map((guess) => {
+        const document = namesById.get(guess.documentId!);
+        return {
+          ...guess,
+          documentNameKo: document?.nameKo ?? guess.documentId,
+          documentNameEn: document?.nameEn ?? guess.documentId,
+        };
+      });
 
     return Response.json({ suggestions, checkedCount: filenames.length });
   } catch (problem) {

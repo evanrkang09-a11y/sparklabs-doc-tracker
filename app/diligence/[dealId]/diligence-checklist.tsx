@@ -4,10 +4,13 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { Deal } from "@/lib/deals";
 import type { CheckState } from "@/lib/diligence-store";
+import { T } from "@/lib/i18n";
+import { useLang } from "@/app/lang-provider";
 
 type RelatedDocument = {
   id: string;
   nameKo: string;
+  nameEn: string;
   submitted: boolean;
   optional: boolean;
 };
@@ -18,7 +21,9 @@ type Item = {
   titleEn: string;
   sourceRef: string;
   detailsKo: string[];
+  detailsEn: string[];
   tipsKo?: string[];
+  tipsEn?: string[];
   relatedDocuments: RelatedDocument[];
 };
 
@@ -27,6 +32,7 @@ type Section = {
   titleKo: string;
   titleEn: string;
   blurbKo: string;
+  blurbEn: string;
   items: Item[];
 };
 
@@ -48,6 +54,9 @@ export default function DiligenceChecklist({
   missingCount: number;
   totalRequired: number;
 }) {
+  const { lang, t } = useLang();
+  const ko = lang === "ko";
+
   const [checks, setChecks] = useState(initialChecks);
   const [saving, setSaving] = useState(0);
   const [savedAt, setSavedAt] = useState<string | null>(null);
@@ -74,12 +83,12 @@ export default function DiligenceChecklist({
 
       if (!response.ok) {
         const body = await response.json().catch(() => null);
-        throw new Error(body?.error ?? `서버 응답 ${response.status}`);
+        throw new Error(body?.error ?? `${response.status}`);
       }
 
       setSavedAt(new Date().toLocaleTimeString());
     } catch (problem) {
-      setSaveError(problem instanceof Error ? problem.message : "저장에 실패했습니다");
+      setSaveError(problem instanceof Error ? problem.message : "Unknown error");
     } finally {
       setSaving((count) => count - 1);
     }
@@ -116,24 +125,18 @@ export default function DiligenceChecklist({
   const complete = doneCount === allItems.length;
 
   return (
-    <main className="mx-auto max-w-3xl px-6 py-12">
+    <main className="mx-auto w-full max-w-3xl px-6 py-10">
       <header className="mb-8">
         <p className="text-sm font-medium tracking-wide text-neutral-500 uppercase">
-          SparkLabs Korea &middot; 내부용
+          {t(T.internalOnly)}
         </p>
         <h1 className="mt-1 text-3xl font-semibold tracking-tight">
-          {deal.companyKo} 서류 실사
+          {ko ? deal.companyKo : deal.companyEn} {t(T.diligenceTitle)}
         </h1>
-        <p className="mt-1 text-neutral-500">
-          Document Due Diligence &middot; {deal.companyEn}
-        </p>
       </header>
 
       <p className="mb-6 rounded-lg border border-neutral-300 bg-neutral-50 px-4 py-3 text-sm text-neutral-700 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300">
-        이 페이지는 <strong>내부 검토용</strong>입니다. 투자기업에 공유하지 마세요.
-        <span className="mt-1 block text-neutral-500">
-          Internal working notes — do not share this link with the company.
-        </span>
+        {t(T.internalBanner)}
       </p>
 
       {/* Progress */}
@@ -146,8 +149,10 @@ export default function DiligenceChecklist({
       >
         <p className="text-2xl font-semibold">
           {complete
-            ? "실사 항목 전체 확인 완료"
-            : `${allItems.length}개 중 ${doneCount}개 확인`}
+            ? t(T.allChecked)
+            : ko
+              ? `${allItems.length}개 중 ${doneCount}개 확인`
+              : `${doneCount} of ${allItems.length} checked`}
         </p>
         <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-800">
           <div
@@ -160,10 +165,12 @@ export default function DiligenceChecklist({
 
         {missingCount > 0 && (
           <p className="mt-4 text-sm text-amber-700 dark:text-amber-500">
-            아직 제출되지 않은 필수 서류가 {totalRequired}건 중 {missingCount}건 있습니다.
-            서류가 모두 도착한 뒤 실사를 진행하는 것이 원칙입니다.{" "}
+            {ko
+              ? `아직 제출되지 않은 필수 서류가 ${totalRequired}건 중 ${missingCount}건 있습니다. `
+              : `${missingCount} of ${totalRequired} required documents haven't arrived yet. `}
+            {t(T.missingDocsWarning)}{" "}
             <Link href={`/deal/${deal.id}`} className="underline">
-              제출 현황 보기
+              {t(T.viewSubmissions)}
             </Link>
           </p>
         )}
@@ -172,29 +179,35 @@ export default function DiligenceChecklist({
       {/* Save indicator */}
       <p className="mt-3 h-5 text-xs text-neutral-400">
         {saveError ? (
-          <span className="text-red-600 dark:text-red-400">저장 실패 — {saveError}</span>
+          <span className="text-red-600 dark:text-red-400">
+            {t(T.saveFailed)} — {saveError}
+          </span>
         ) : saving > 0 ? (
-          "저장 중…"
+          t(T.saving)
         ) : savedAt ? (
-          `저장됨 ${savedAt}`
+          `${t(T.saved)} ${savedAt}`
         ) : (
-          "변경하면 자동으로 저장됩니다."
+          t(T.autosaveHint)
         )}
       </p>
 
       {sections.map((section) => (
         <section key={section.id} className="mt-10">
           <h2 className="text-xl font-semibold tracking-tight">
-            {section.titleKo}
+            {ko ? section.titleKo : section.titleEn}
             <span className="ml-2 text-sm font-normal text-neutral-500">
-              {section.titleEn}
+              {ko ? section.titleEn : section.titleKo}
             </span>
           </h2>
-          <p className="mt-1 text-sm text-neutral-500">{section.blurbKo}</p>
+          <p className="mt-1 text-sm text-neutral-500">
+            {ko ? section.blurbKo : section.blurbEn}
+          </p>
 
           <ol className="mt-4 space-y-4">
             {section.items.map((item) => {
               const state = checks[item.id] ?? EMPTY;
+              const details = ko ? item.detailsKo : item.detailsEn;
+              const tips = ko ? item.tipsKo : item.tipsEn;
 
               return (
                 <li
@@ -213,20 +226,22 @@ export default function DiligenceChecklist({
                       className="mt-1 h-5 w-5 shrink-0 accent-emerald-600"
                     />
                     <span className="min-w-0">
-                      <span className="block font-medium">{item.titleKo}</span>
+                      <span className="block font-medium">
+                        {ko ? item.titleKo : item.titleEn}
+                      </span>
                       <span className="mt-0.5 block text-sm text-neutral-500">
-                        {item.titleEn} &middot; {item.sourceRef}
+                        {ko ? item.titleEn : item.titleKo} &middot; {item.sourceRef}
                       </span>
                     </span>
                   </label>
 
                   <ul className="mt-3 ml-8 list-disc space-y-1 text-sm text-neutral-600 marker:text-neutral-300 dark:text-neutral-400">
-                    {item.detailsKo.map((detail) => (
+                    {details.map((detail) => (
                       <li key={detail}>{detail}</li>
                     ))}
                   </ul>
 
-                  {item.tipsKo?.map((tip) => (
+                  {tips?.map((tip) => (
                     <p
                       key={tip}
                       className="mt-2 ml-8 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:bg-amber-950/30 dark:text-amber-200"
@@ -237,12 +252,16 @@ export default function DiligenceChecklist({
 
                   {item.relatedDocuments.length > 0 && (
                     <div className="mt-3 ml-8 flex flex-wrap items-center gap-1.5">
-                      <span className="text-xs text-neutral-400">관련 서류</span>
+                      <span className="text-xs text-neutral-400">{t(T.relatedDocs)}</span>
                       {item.relatedDocuments.map((doc) => (
                         <span
                           key={doc.id}
                           title={
-                            doc.submitted ? "제출됨" : doc.optional ? "해당 시" : "미제출"
+                            doc.submitted
+                              ? t(T.submitted)
+                              : doc.optional
+                                ? t(T.ifApplicable)
+                                : t(T.notSubmitted)
                           }
                           className={`rounded px-1.5 py-0.5 text-xs ${
                             doc.submitted
@@ -250,7 +269,7 @@ export default function DiligenceChecklist({
                               : "bg-neutral-100 text-neutral-500 line-through dark:bg-neutral-800 dark:text-neutral-500"
                           }`}
                         >
-                          {doc.nameKo}
+                          {ko ? doc.nameKo : doc.nameEn}
                         </span>
                       ))}
                     </div>
@@ -260,7 +279,7 @@ export default function DiligenceChecklist({
                     value={state.note}
                     onChange={(event) => editNote(item, event.target.value)}
                     rows={2}
-                    placeholder="메모 — 확인한 내용, 기업에 질의할 사항 등"
+                    placeholder={t(T.memoPlaceholder)}
                     className="mt-3 ml-8 block w-[calc(100%-2rem)] resize-y rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm placeholder:text-neutral-400 focus:border-neutral-400 focus:outline-none dark:border-neutral-800 dark:bg-neutral-950"
                   />
                 </li>
@@ -271,8 +290,7 @@ export default function DiligenceChecklist({
       ))}
 
       <footer className="mt-10 border-t border-neutral-200 pt-6 text-xs text-neutral-400 dark:border-neutral-800">
-        출처: 사내 &lsquo;#3. 서류 실사&rsquo; 문서. 예비실사 체크리스트(사내 표준 양식)는
-        별도 문서입니다.
+        {t(T.diligenceSource)}
       </footer>
     </main>
   );

@@ -15,6 +15,7 @@ import { getDeal } from "@/lib/deals";
 import { collectDealStatus } from "@/lib/deal-status";
 import { diligenceSectionsFor } from "@/lib/diligence";
 import { readDiligence, type DiligenceRecord } from "@/lib/diligence-store";
+import SiteHeader from "@/app/site-header";
 import DiligenceChecklist from "./diligence-checklist";
 
 export const metadata: Metadata = {
@@ -51,6 +52,7 @@ export default async function DiligencePage({
         .map((doc) => ({
           id: doc.id,
           nameKo: doc.nameKo,
+          nameEn: doc.nameEn,
           submitted: doc.submitted,
           optional: doc.optional === true,
         })),
@@ -58,12 +60,22 @@ export default async function DiligencePage({
   }));
 
   return (
-    <DiligenceChecklist
-      deal={deal}
-      sections={sections}
-      initialChecks={saved.checks}
-      missingCount={status.missingCount}
-      totalRequired={status.totalRequired}
-    />
+    <>
+      {/* Both tabs live here - this side is internal, so linking out to the
+          company-facing page is safe in a way the reverse isn't. */}
+      <SiteHeader
+        dealId={deal.id}
+        companyKo={deal.companyKo}
+        companyEn={deal.companyEn}
+        showDiligenceTab
+      />
+      <DiligenceChecklist
+        deal={deal}
+        sections={sections}
+        initialChecks={saved.checks}
+        missingCount={status.missingCount}
+        totalRequired={status.totalRequired}
+      />
+    </>
   );
 }

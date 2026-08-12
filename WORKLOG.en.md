@@ -76,6 +76,22 @@ Three pieces of mentor feedback:
 
 Point 3 stung, because I had written **"need to confirm with the mentor what documents #6 and #9 are"** into the first work log as a finding. Not every pattern in the data means something. I should have asked before recording a guess as a fact.
 
+### ⚠️ Where this deliberately departs from the written brief (on the mentor's instruction)
+
+**What the brief says** (Sheet 3, core requirement #2):
+
+> **Google Drive upload recognition** — when document files are placed in a Drive folder the mentor has prepared, the web app identifies which document each one is from its filename.
+
+**What was actually built:** **direct upload** through a per-company link. The app does not read a Drive folder.
+
+**Why:** the mentor instructed otherwise, verbally. His words: it should be something where the person uploading is prompted to upload their files onto the website, **case by case per company**, rather than us pointing at one folder and displaying what we find.
+
+So: **the document says Drive recognition; the mentor asked for direct upload, and that's what shipped.** In real practice a company submits its own paperwork rather than us reading a folder over their shoulder, so the verbal instruction matches the actual workflow better than the written one.
+
+**The Drive integration was switched off, not deleted** (`lib/drive.ts`, `readsSampleDriveFolder: false`). If the original requirement ever needs honouring literally, it's a config flag, not a rebuild.
+
+**Lesson:** when the document and a person disagree, the person is the more recent source. But **write down why you diverged** — otherwise you have no answer when someone asks why requirement #2 wasn't done.
+
 **What survived the rewrite:** the Drive integration (`lib/drive.ts`) wasn't deleted, just switched off (`readsSampleDriveFolder: false`). It can be turned back on, and it's in git either way.
 
 ---
