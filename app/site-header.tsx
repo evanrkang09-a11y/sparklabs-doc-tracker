@@ -1,16 +1,16 @@
 "use client";
 
 /**
- * The bar across the top of every page: home, tabs, language.
+ * The bar across the top of every page: home, tabs, account, language.
  *
- * The diligence tab is deliberately NOT shown on /deal/<id>. That page is the
- * link handed to the company, and a visible "Due Diligence" tab there is an
- * invitation to click into the analyst's private notes about their own deal.
- * Set `showDiligenceTab` to true if that tradeoff ever becomes acceptable.
+ * Both tabs show everywhere. That's safe because every user is SparkLabs staff
+ * - companies email their documents in and an employee uploads them, so no
+ * outsider ever loads these pages.
  */
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { signOut } from "next-auth/react";
 import { T } from "@/lib/i18n";
 import { useLang } from "./lang-provider";
 
@@ -18,12 +18,12 @@ export default function SiteHeader({
   dealId,
   companyKo,
   companyEn,
-  showDiligenceTab = false,
+  userEmail,
 }: {
   dealId?: string;
   companyKo?: string;
   companyEn?: string;
-  showDiligenceTab?: boolean;
+  userEmail?: string | null;
 }) {
   const { lang, setLang, t } = useLang();
   const pathname = usePathname();
@@ -44,6 +44,15 @@ export default function SiteHeader({
         </Link>
 
         <div className="flex shrink-0 items-center gap-2">
+          {userEmail && (
+            <span
+              title={userEmail}
+              className="hidden max-w-[14rem] truncate text-xs text-neutral-500 sm:block"
+            >
+              {userEmail}
+            </span>
+          )}
+
           <Link
             href="/"
             className="rounded-lg px-2.5 py-1.5 text-sm text-neutral-600 transition-colors hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800"
@@ -59,6 +68,16 @@ export default function SiteHeader({
           >
             {t(T.langToggle)}
           </button>
+
+          {userEmail && (
+            <button
+              type="button"
+              onClick={() => signOut({ callbackUrl: "/login" })}
+              className="rounded-lg px-2.5 py-1.5 text-sm text-neutral-600 transition-colors hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800"
+            >
+              {t(T.signOut)}
+            </button>
+          )}
         </div>
       </div>
 
@@ -67,15 +86,9 @@ export default function SiteHeader({
           <Tab href={`/deal/${dealId}`} active={!onDiligence}>
             {t(T.tabDocuments)}
           </Tab>
-
-          {showDiligenceTab && (
-            <Tab href={`/diligence/${dealId}`} active={onDiligence}>
-              {t(T.tabDiligence)}
-              <span className="ml-1.5 rounded bg-neutral-200 px-1 py-0.5 text-[10px] font-normal text-neutral-600 dark:bg-neutral-700 dark:text-neutral-300">
-                {t(T.internalOnly)}
-              </span>
-            </Tab>
-          )}
+          <Tab href={`/diligence/${dealId}`} active={onDiligence}>
+            {t(T.tabDiligence)}
+          </Tab>
         </nav>
       )}
     </header>

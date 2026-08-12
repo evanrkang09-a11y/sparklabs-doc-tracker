@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { auth } from "@/auth";
 import { getDeal } from "@/lib/deals";
 import SiteHeader from "@/app/site-header";
 import DealTracker from "./deal-tracker";
@@ -15,17 +16,15 @@ export default async function DealPage({
     notFound();
   }
 
+  const session = await auth();
+
   return (
     <>
-      {/*
-        No due-diligence tab here on purpose. This page's URL is what gets sent
-        to the company, and a visible tab into the analyst's private notes on
-        their own deal is an invitation to click it.
-      */}
       <SiteHeader
         dealId={deal.id}
         companyKo={deal.companyKo}
         companyEn={deal.companyEn}
+        userEmail={session?.user?.email}
       />
       <DealTracker deal={deal} />
     </>

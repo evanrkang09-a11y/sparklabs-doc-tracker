@@ -11,6 +11,7 @@
 
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { auth } from "@/auth";
 import { getDeal } from "@/lib/deals";
 import { collectDealStatus } from "@/lib/deal-status";
 import { diligenceSectionsFor } from "@/lib/diligence";
@@ -31,6 +32,8 @@ export default async function DiligencePage({
   const deal = getDeal(dealId);
 
   if (!deal) notFound();
+
+  const session = await auth();
 
   const [status, saved] = await Promise.all([
     collectDealStatus(deal),
@@ -61,13 +64,11 @@ export default async function DiligencePage({
 
   return (
     <>
-      {/* Both tabs live here - this side is internal, so linking out to the
-          company-facing page is safe in a way the reverse isn't. */}
       <SiteHeader
         dealId={deal.id}
         companyKo={deal.companyKo}
         companyEn={deal.companyEn}
-        showDiligenceTab
+        userEmail={session?.user?.email}
       />
       <DiligenceChecklist
         deal={deal}

@@ -28,6 +28,27 @@ export const T = {
   internalOnly: { ko: "내부용", en: "Internal" },
   langToggle: { ko: "English", en: "한국어" },
 
+  // --- login ---
+  signInTitle: { ko: "로그인", en: "Sign in" },
+  signInWithGoogle: { ko: "Google 계정으로 로그인", en: "Sign in with Google" },
+  signInDomainNote: {
+    ko: "계정만 로그인할 수 있습니다.",
+    en: "accounts only.",
+  },
+  signInNoPassword: {
+    ko: "비밀번호는 Google에서 입력하며, 이 사이트는 비밀번호를 저장하지 않습니다.",
+    en: "You enter your password on Google. This site never sees or stores it.",
+  },
+  signInRefused: {
+    ko: "이 계정으로는 로그인할 수 없습니다. 회사 계정으로 다시 시도해 주세요.",
+    en: "That account can't sign in here. Try again with your company account.",
+  },
+  signInError: {
+    ko: "로그인 중 문제가 발생했습니다. 다시 시도해 주세요.",
+    en: "Something went wrong signing in. Please try again.",
+  },
+  signOut: { ko: "로그아웃", en: "Sign out" },
+
   // --- home ---
   appName: { ko: "서류 취합 트래커", en: "Document Collection Tracker" },
   appTagline: {
@@ -35,12 +56,12 @@ export const T = {
     en: "Pre-investment document management",
   },
   homeIntro: {
-    ko: "기업별 페이지 링크를 해당 기업에 전달하면, 기업이 직접 서류를 업로드할 수 있습니다.",
-    en: "Send a company its own link and they upload their documents themselves.",
+    ko: "기업이 보내온 서류를 해당 기업 페이지에 업로드하면, 무엇이 제출됐고 무엇이 남았는지 자동으로 정리됩니다.",
+    en: "Upload the documents a company sends in to that company's page, and what's arrived and what's still outstanding sorts itself out.",
   },
   homeInternalWarning: {
-    ko: "'서류 실사'는 내부 검토용입니다 — 기업에 공유하지 마세요.",
-    en: "'Due Diligence' is for internal review — do not share it with the company.",
+    ko: "사내 전용 도구입니다. 링크를 외부에 공유하지 마세요.",
+    en: "Internal tool. Do not share these links outside the company.",
   },
   domesticCompany: { ko: "국내 기업", en: "Korean company" },
   overseasCompany: { ko: "해외 기업", en: "Overseas company" },

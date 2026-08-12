@@ -1,9 +1,12 @@
+import { auth } from "@/auth";
 import { DEALS } from "@/lib/deals";
 import { documentsFor } from "@/lib/documents";
 import DealList from "./deal-list";
 import SiteHeader from "./site-header";
 
-export default function Home() {
+export default async function Home() {
+  const session = await auth();
+
   // Counting on the server keeps the whole document list out of the browser
   // bundle - the home page only needs the number.
   const deals = DEALS.map((deal) => ({
@@ -16,7 +19,7 @@ export default function Home() {
 
   return (
     <>
-      <SiteHeader />
+      <SiteHeader userEmail={session?.user?.email} />
       <main className="mx-auto w-full max-w-3xl px-6 py-10">
         <DealList deals={deals} />
       </main>

@@ -6,6 +6,7 @@
  */
 
 import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
+import { auth } from "@/auth";
 import { getDeal } from "@/lib/deals";
 import { prefixForDeal } from "@/lib/storage";
 
@@ -20,6 +21,13 @@ export async function POST(request: Request): Promise<Response> {
       body,
       request,
       onBeforeGenerateToken: async (pathname) => {
+        // This route is exempt from the proxy so Blob's completion callback can
+        // reach it, which means the token branch has to check the session
+        // itself. Without this, anyone could ask for an upload token.
+        if (!(await auth())) {
+          throw new Error("Authentication required");
+        }
+
         // Only allow uploads into a folder belonging to a deal we know about,
         // so nobody can use this endpoint as free file hosting.
         const dealId = pathname.split("/")[1] ?? "";
