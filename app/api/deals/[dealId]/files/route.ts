@@ -4,9 +4,8 @@
  * Companies do upload the wrong file - an old version, the wrong company's
  * paperwork, a scan that came out blank - so they need a way to take it back.
  *
- * Note there is no login yet: anyone holding a deal's link can delete that
- * deal's files, exactly as anyone holding it can upload. Worth fixing before
- * this handles anything but sample data.
+ * Reaching this route at all requires a signed-in SparkLabs account - proxy.ts
+ * turns anonymous API requests away with a 401 before they arrive here.
  */
 
 import { getDeal } from "@/lib/deals";

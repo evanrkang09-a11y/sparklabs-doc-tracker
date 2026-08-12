@@ -8,9 +8,9 @@
  * page itself and the auth endpoints Google redirects back to, which would
  * otherwise be an unreachable loop.
  *
- * This is the front door, not the only lock: routes that touch data check the
- * session themselves too. A redirect here is for humans; the checks in the API
- * routes are what stop a request that skips the browser entirely.
+ * This is the front door and, for most routes, the only lock - so an exemption
+ * added below is a route left open. /api/upload is the one exemption today and
+ * it re-checks the session itself; anything else added here must do the same.
  */
 
 import { auth } from "@/auth";

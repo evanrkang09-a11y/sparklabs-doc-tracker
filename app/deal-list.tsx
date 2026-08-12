@@ -10,7 +10,7 @@ export type DealSummary = Pick<Deal, "id" | "companyKo" | "companyEn" | "market"
 };
 
 export default function DealList({ deals }: { deals: DealSummary[] }) {
-  const { lang, t } = useLang();
+  const { lang, t, both } = useLang();
 
   return (
     <>
@@ -25,31 +25,37 @@ export default function DealList({ deals }: { deals: DealSummary[] }) {
       </p>
 
       <ul className="divide-y divide-neutral-200 dark:divide-neutral-800">
-        {deals.map((deal) => (
-          <li key={deal.id} className="flex items-center justify-between gap-4 py-4">
-            <Link
-              href={`/deal/${deal.id}`}
-              className="min-w-0 transition-opacity hover:opacity-70"
-            >
-              <p className="font-medium">
-                {lang === "ko" ? deal.companyKo : deal.companyEn}
-              </p>
-              <p className="text-sm text-neutral-500">
-                {lang === "ko" ? deal.companyEn : deal.companyKo} &middot;{" "}
-                {t(deal.market === "overseas" ? T.overseasCompany : T.domesticCompany)}{" "}
-                &middot; {t(T.requiredCount)} {deal.requiredCount}
-                {t(T.items)}
-              </p>
-            </Link>
+        {deals.map((deal) => {
+          const [name, otherName] = both(deal.companyKo, deal.companyEn);
 
-            <Link
-              href={`/diligence/${deal.id}`}
-              className="shrink-0 rounded-lg border border-neutral-300 px-3 py-1.5 text-sm transition-colors hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-900"
-            >
-              {t(T.tabDiligence)}
-            </Link>
-          </li>
-        ))}
+          return (
+            <li key={deal.id} className="flex items-center justify-between gap-4 py-4">
+              <Link
+                href={`/deal/${deal.id}`}
+                className="min-w-0 transition-opacity hover:opacity-70"
+              >
+                <p className="font-medium">{name}</p>
+                <p className="text-sm text-neutral-500">
+                  {otherName} &middot;{" "}
+                  {t(deal.market === "overseas" ? T.overseasCompany : T.domesticCompany)}{" "}
+                  &middot;{" "}
+                  {/* Written as a whole clause per language: Korean puts the
+                      count before the unit, English puts it after. */}
+                  {lang === "ko"
+                    ? `필수 ${deal.requiredCount}건`
+                    : `${deal.requiredCount} required`}
+                </p>
+              </Link>
+
+              <Link
+                href={`/diligence/${deal.id}`}
+                className="shrink-0 rounded-lg border border-neutral-300 px-3 py-1.5 text-sm transition-colors hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-900"
+              >
+                {t(T.tabDiligence)}
+              </Link>
+            </li>
+          );
+        })}
       </ul>
     </>
   );

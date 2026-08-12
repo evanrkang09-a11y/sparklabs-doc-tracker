@@ -18,6 +18,7 @@
  */
 
 import { documentsFor, type Market } from "./documents";
+import { readEnv, readEnvOr } from "./env";
 
 export type Guess = {
   filename: string;
@@ -39,13 +40,11 @@ const ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
 const DEFAULT_MODEL = "google/gemini-2.5-flash-lite";
 
 function readKey(): string {
-  // .trim() because pasted keys arrive with stray whitespace or a BOM more
-  // often than you'd think - that exact problem cost an afternoon already.
-  return process.env.OPENROUTER_API_KEY?.trim() ?? "";
+  return readEnv("OPENROUTER_API_KEY");
 }
 
 function readModel(): string {
-  return process.env.OPENROUTER_MODEL?.trim() || DEFAULT_MODEL;
+  return readEnvOr("OPENROUTER_MODEL", DEFAULT_MODEL);
 }
 
 export function isAiConfigured(): boolean {

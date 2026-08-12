@@ -19,6 +19,24 @@ export function tr(phrase: Phrase, lang: Lang): string {
   return phrase[lang];
 }
 
+/**
+ * Content in lib/documents.ts and lib/diligence.ts carries its two languages as
+ * separate `somethingKo` / `somethingEn` fields rather than a Phrase, so it
+ * can't go through `tr`. These two cover that shape.
+ *
+ * `both` exists because most of the UI shows the chosen language with the other
+ * underneath it, which is the same choice made twice in opposite directions -
+ * easy to get subtly backwards when written out by hand.
+ */
+export function pick(lang: Lang, ko: string, en: string): string {
+  return lang === "ko" ? ko : en;
+}
+
+/** Returns [chosen language, the other one] for a primary/secondary pair. */
+export function both(lang: Lang, ko: string, en: string): [string, string] {
+  return lang === "ko" ? [ko, en] : [en, ko];
+}
+
 export const T = {
   // --- chrome ---
   org: { ko: "SparkLabs Korea", en: "SparkLabs Korea" },
@@ -29,7 +47,6 @@ export const T = {
   langToggle: { ko: "English", en: "한국어" },
 
   // --- login ---
-  signInTitle: { ko: "로그인", en: "Sign in" },
   signInWithGoogle: { ko: "Google 계정으로 로그인", en: "Sign in with Google" },
   signInDomainNote: {
     ko: "계정만 로그인할 수 있습니다.",
@@ -65,8 +82,6 @@ export const T = {
   },
   domesticCompany: { ko: "국내 기업", en: "Korean company" },
   overseasCompany: { ko: "해외 기업", en: "Overseas company" },
-  requiredCount: { ko: "필수", en: "required" },
-  items: { ko: "건", en: "" },
 
   // --- deal / upload ---
   preInvestmentDocs: { ko: "투자 전 제출 서류", en: "Pre-investment documents" },
@@ -134,8 +149,6 @@ export const T = {
     en: "This page is for internal review. Do not share it with the company.",
   },
   allChecked: { ko: "실사 항목 전체 확인 완료", en: "All checks complete" },
-  ofChecked: { ko: "확인", en: "checked" },
-  outOf: { ko: "개 중", en: "of" },
   missingDocsWarning: {
     ko: "아직 제출되지 않은 필수 서류가 있습니다. 서류가 모두 도착한 뒤 실사를 진행하는 것이 원칙입니다.",
     en: "Some required documents haven't arrived yet. Due diligence is normally done once everything is in.",

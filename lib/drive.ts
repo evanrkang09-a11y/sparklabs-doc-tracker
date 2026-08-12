@@ -17,6 +17,7 @@
  */
 
 import { google, type drive_v3 } from "googleapis";
+import { readEnv as readCleanEnv } from "./env";
 
 const SCOPES = ["https://www.googleapis.com/auth/drive.readonly"];
 
@@ -26,8 +27,9 @@ const SCOPES = ["https://www.googleapis.com/auth/drive.readonly"];
  * would otherwise be silently baked into a folder id or a JSON key.
  */
 function readEnv(name: string): string | undefined {
-  const value = process.env[name]?.trim();
-  return value ? value : undefined;
+  // Thin wrapper over the shared reader, which also strips byte-order marks.
+  // The undefined-when-blank shape is what the callers below expect.
+  return readCleanEnv(name) || undefined;
 }
 
 /** True when we have both a folder to look at and some way to log in. */

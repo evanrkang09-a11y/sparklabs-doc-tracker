@@ -25,11 +25,11 @@ export default function SiteHeader({
   companyEn?: string;
   userEmail?: string | null;
 }) {
-  const { lang, setLang, t } = useLang();
+  const { lang, setLang, t, pick } = useLang();
   const pathname = usePathname();
 
-  const onDiligence = pathname?.startsWith("/diligence") ?? false;
-  const company = lang === "ko" ? companyKo : companyEn;
+  const onDiligence = pathname.startsWith("/diligence");
+  const company = companyKo && companyEn ? pick(companyKo, companyEn) : undefined;
 
   return (
     <header className="sticky top-0 z-10 border-b border-neutral-200 bg-white/85 backdrop-blur dark:border-neutral-800 dark:bg-neutral-950/85">

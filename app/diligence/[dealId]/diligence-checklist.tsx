@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { Deal } from "@/lib/deals";
 import type { CheckState } from "@/lib/diligence-store";
 import { T } from "@/lib/i18n";
+import { describe } from "@/lib/errors";
 import { useLang } from "@/app/lang-provider";
 
 type RelatedDocument = {
@@ -54,8 +55,9 @@ export default function DiligenceChecklist({
   missingCount: number;
   totalRequired: number;
 }) {
-  const { lang, t } = useLang();
+  const { lang, t, pick, both } = useLang();
   const ko = lang === "ko";
+  const [companyName] = both(deal.companyKo, deal.companyEn);
 
   const [checks, setChecks] = useState(initialChecks);
   const [saving, setSaving] = useState(0);
@@ -88,7 +90,7 @@ export default function DiligenceChecklist({
 
       setSavedAt(new Date().toLocaleTimeString());
     } catch (problem) {
-      setSaveError(problem instanceof Error ? problem.message : "Unknown error");
+      setSaveError(describe(problem));
     } finally {
       setSaving((count) => count - 1);
     }
@@ -131,7 +133,7 @@ export default function DiligenceChecklist({
           {t(T.internalOnly)}
         </p>
         <h1 className="mt-1 text-3xl font-semibold tracking-tight">
-          {ko ? deal.companyKo : deal.companyEn} {t(T.diligenceTitle)}
+          {companyName} {t(T.diligenceTitle)}
         </h1>
       </header>
 
@@ -194,13 +196,13 @@ export default function DiligenceChecklist({
       {sections.map((section) => (
         <section key={section.id} className="mt-10">
           <h2 className="text-xl font-semibold tracking-tight">
-            {ko ? section.titleKo : section.titleEn}
+            {both(section.titleKo, section.titleEn)[0]}
             <span className="ml-2 text-sm font-normal text-neutral-500">
-              {ko ? section.titleEn : section.titleKo}
+              {both(section.titleKo, section.titleEn)[1]}
             </span>
           </h2>
           <p className="mt-1 text-sm text-neutral-500">
-            {ko ? section.blurbKo : section.blurbEn}
+            {pick(section.blurbKo, section.blurbEn)}
           </p>
 
           <ol className="mt-4 space-y-4">
@@ -208,6 +210,7 @@ export default function DiligenceChecklist({
               const state = checks[item.id] ?? EMPTY;
               const details = ko ? item.detailsKo : item.detailsEn;
               const tips = ko ? item.tipsKo : item.tipsEn;
+              const [itemTitle, otherItemTitle] = both(item.titleKo, item.titleEn);
 
               return (
                 <li
@@ -226,11 +229,9 @@ export default function DiligenceChecklist({
                       className="mt-1 h-5 w-5 shrink-0 accent-emerald-600"
                     />
                     <span className="min-w-0">
-                      <span className="block font-medium">
-                        {ko ? item.titleKo : item.titleEn}
-                      </span>
+                      <span className="block font-medium">{itemTitle}</span>
                       <span className="mt-0.5 block text-sm text-neutral-500">
-                        {ko ? item.titleEn : item.titleKo} &middot; {item.sourceRef}
+                        {otherItemTitle} &middot; {item.sourceRef}
                       </span>
                     </span>
                   </label>
@@ -269,7 +270,7 @@ export default function DiligenceChecklist({
                               : "bg-neutral-100 text-neutral-500 line-through dark:bg-neutral-800 dark:text-neutral-500"
                           }`}
                         >
-                          {ko ? doc.nameKo : doc.nameEn}
+                          {pick(doc.nameKo, doc.nameEn)}
                         </span>
                       ))}
                     </div>

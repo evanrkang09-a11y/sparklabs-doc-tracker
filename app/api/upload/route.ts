@@ -7,6 +7,7 @@
 
 import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
 import { auth } from "@/auth";
+import { describe } from "@/lib/errors";
 import { getDeal } from "@/lib/deals";
 import { prefixForDeal } from "@/lib/storage";
 
@@ -49,7 +50,6 @@ export async function POST(request: Request): Promise<Response> {
 
     return Response.json(result);
   } catch (problem) {
-    const message = problem instanceof Error ? problem.message : "Upload failed";
-    return Response.json({ error: message }, { status: 400 });
+    return Response.json({ error: describe(problem, "Upload failed") }, { status: 400 });
   }
 }

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { upload } from "@vercel/blob/client";
 import type { Deal } from "@/lib/deals";
 import { T } from "@/lib/i18n";
+import { describe } from "@/lib/errors";
 import { useLang } from "@/app/lang-provider";
 
 type FoundFile = { name: string; source: "upload" | "drive" };
@@ -40,7 +41,7 @@ type StatusResponse = {
 const REFRESH_MS = 5000;
 
 export default function DealTracker({ deal }: { deal: Deal }) {
-  const { lang, t } = useLang();
+  const { lang, t, pick, both } = useLang();
 
   const [data, setData] = useState<StatusResponse | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -64,7 +65,7 @@ export default function DealTracker({ deal }: { deal: Deal }) {
       setData(await response.json());
       setLoadError(null);
     } catch (problem) {
-      setLoadError(problem instanceof Error ? problem.message : "Unknown error");
+      setLoadError(describe(problem));
     }
   }, [deal.id]);
 
@@ -88,8 +89,7 @@ export default function DealTracker({ deal }: { deal: Deal }) {
           onUploadProgress: ({ percentage }) => setPercent(percentage),
         });
       } catch (problem) {
-        const reason = problem instanceof Error ? problem.message : "";
-        setUploadError(`${file.name} — ${t(T.uploadFailed)}${reason ? `: ${reason}` : ""}`);
+        setUploadError(`${file.name} — ${t(T.uploadFailed)}: ${describe(problem)}`);
         break;
       }
     }
@@ -122,8 +122,7 @@ export default function DealTracker({ deal }: { deal: Deal }) {
 
       await refresh();
     } catch (problem) {
-      const reason = problem instanceof Error ? problem.message : "";
-      setUploadError(`${name} — ${t(T.deleteFailed)}${reason ? `: ${reason}` : ""}`);
+      setUploadError(`${name} — ${t(T.deleteFailed)}: ${describe(problem)}`);
     } finally {
       setDeleting(null);
     }
@@ -136,17 +135,20 @@ export default function DealTracker({ deal }: { deal: Deal }) {
 
     try {
       const response = await fetch(`/api/deals/${deal.id}/classify`, { method: "POST" });
-      const body = await response.json();
+      // .catch here like the other two call sites - without it a non-JSON error
+      // response surfaces to the user as a JSON parser message.
+      const body = await response.json().catch(() => null);
       if (!response.ok) throw new Error(body?.error ?? `${response.status}`);
       setSuggestions(body.suggestions);
     } catch (problem) {
-      setClassifyError(problem instanceof Error ? problem.message : "Unknown error");
+      setClassifyError(describe(problem));
     } finally {
       setClassifying(false);
     }
   }
 
   const complete = data ? data.missingCount === 0 : false;
+  const [companyName, otherCompanyName] = both(deal.companyKo, deal.companyEn);
 
   return (
     <main className="mx-auto w-full max-w-3xl px-6 py-10">
@@ -154,11 +156,9 @@ export default function DealTracker({ deal }: { deal: Deal }) {
         <p className="text-sm font-medium tracking-wide text-neutral-500 uppercase">
           {t(T.preInvestmentDocs)}
         </p>
-        <h1 className="mt-1 text-3xl font-semibold tracking-tight">
-          {lang === "ko" ? deal.companyKo : deal.companyEn}
-        </h1>
+        <h1 className="mt-1 text-3xl font-semibold tracking-tight">{companyName}</h1>
         <p className="mt-1 text-neutral-500">
-          {lang === "ko" ? deal.companyEn : deal.companyKo} &middot;{" "}
+          {otherCompanyName} &middot;{" "}
           {t(deal.market === "overseas" ? T.overseasCompany : T.domesticCompany)}
         </p>
       </header>
@@ -270,7 +270,8 @@ export default function DealTracker({ deal }: { deal: Deal }) {
       {/* The checklist */}
       <ul className="mt-8 divide-y divide-neutral-200 dark:divide-neutral-800">
         {data?.documents.map((document) => {
-          const note = lang === "ko" ? document.note : (document.noteEn ?? document.note);
+          const note = pick(document.note ?? "", document.noteEn ?? document.note ?? "");
+          const [docName, otherDocName] = both(document.nameKo, document.nameEn);
 
           return (
             <li key={document.id} className="flex gap-4 py-4">
@@ -287,12 +288,8 @@ export default function DealTracker({ deal }: { deal: Deal }) {
 
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-baseline gap-x-2">
-                  <span className="font-medium">
-                    {lang === "ko" ? document.nameKo : document.nameEn}
-                  </span>
-                  <span className="text-sm text-neutral-500">
-                    {lang === "ko" ? document.nameEn : document.nameKo}
-                  </span>
+                  <span className="font-medium">{docName}</span>
+                  <span className="text-sm text-neutral-500">{otherDocName}</span>
                   {document.optional && (
                     <span className="rounded bg-neutral-100 px-1.5 py-0.5 text-xs text-neutral-500 dark:bg-neutral-800">
                       {t(T.ifApplicable)}
@@ -310,9 +307,6 @@ export default function DealTracker({ deal }: { deal: Deal }) {
                         file={file}
                         tone="found"
                         deleting={deleting === file.name}
-                        driveLabel={t(T.fromDrive)}
-                        deleteLabel={t(T.deleteLabel)}
-                        deletingLabel={t(T.deleting)}
                         onRemove={() => removeFile(file.name)}
                       />
                     ))}
@@ -360,9 +354,6 @@ export default function DealTracker({ deal }: { deal: Deal }) {
                 file={file}
                 tone="unknown"
                 deleting={deleting === file.name}
-                driveLabel={t(T.fromDrive)}
-                deleteLabel={t(T.deleteLabel)}
-                deletingLabel={t(T.deleting)}
                 onRemove={() => removeFile(file.name)}
               />
             ))}
@@ -387,7 +378,7 @@ export default function DealTracker({ deal }: { deal: Deal }) {
                     <span className="font-mono text-neutral-500">{guess.filename}</span>
                     <span className="mx-1.5 text-neutral-400">→</span>
                     <span className="font-medium">
-                      {lang === "ko" ? guess.documentNameKo : guess.documentNameEn}
+                      {pick(guess.documentNameKo, guess.documentNameEn)}
                     </span>
                     <span className="ml-1.5 text-neutral-400">
                       {t(T.confidence)} {Math.round(guess.confidence * 100)}%
@@ -424,19 +415,18 @@ function FileLine({
   file,
   tone,
   deleting,
-  driveLabel,
-  deleteLabel,
-  deletingLabel,
   onRemove,
 }: {
   file: FoundFile;
   tone: "found" | "unknown";
   deleting: boolean;
-  driveLabel: string;
-  deleteLabel: string;
-  deletingLabel: string;
   onRemove: () => void;
 }) {
+  // Same client module as the provider's consumer, so it can read the language
+  // itself rather than have three labels threaded in from both call sites.
+  const { t } = useLang();
+  const deleteLabel = t(T.deleteLabel);
+
   return (
     <li className="group flex items-center gap-2">
       <span
@@ -448,7 +438,7 @@ function FileLine({
       >
         {file.name}
         {file.source === "drive" && (
-          <span className="ml-1 font-sans text-neutral-400">{driveLabel}</span>
+          <span className="ml-1 font-sans text-neutral-400">{t(T.fromDrive)}</span>
         )}
       </span>
 
@@ -461,7 +451,7 @@ function FileLine({
           title={deleteLabel}
           className="shrink-0 text-xs text-neutral-400 opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100 hover:text-red-600 disabled:opacity-100 dark:hover:text-red-400"
         >
-          {deleting ? deletingLabel : "✕"}
+          {deleting ? t(T.deleting) : "✕"}
         </button>
       )}
     </li>

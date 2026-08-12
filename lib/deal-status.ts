@@ -9,6 +9,7 @@ import type { Deal } from "./deals";
 import { documentsFor, matchDocument, type RequiredDocument } from "./documents";
 import { listUploadedFiles } from "./storage";
 import { isDriveConfigured, listDriveFilenames } from "./drive";
+import { describe } from "./errors";
 
 export type FoundFile = { name: string; source: "upload" | "drive" };
 
@@ -95,7 +96,7 @@ export async function collectDealStatus(deal: Deal): Promise<DealStatus> {
   };
 }
 
-/** Shared by anything that needs to turn a caught value into a display string. */
-export function describe(problem: unknown): string {
-  return problem instanceof Error ? problem.message : "unknown error";
-}
+// Re-exported so existing importers keep working. The implementation lives in
+// lib/errors.ts so client components can use it without pulling googleapis
+// into the browser bundle through this module.
+export { describe };

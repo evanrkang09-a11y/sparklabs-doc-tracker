@@ -16,21 +16,10 @@
 
 import NextAuth from "next-auth";
 import Google from "next-auth/providers/google";
-
-/**
- * Reads an environment variable, minus whatever invisible junk rode in with it.
- *
- * A byte-order mark on the front of a pasted or piped value is invisible in
- * every UI that would show it to you, and turns a correct client id into one
- * Google has never heard of - "OAuth client was not found", with a value that
- * looks perfect on screen. This has now cost us an afternoon twice.
- */
-function readEnv(name: string): string {
-  return (process.env[name] ?? "").replace(/^﻿/, "").trim();
-}
+import { readEnv, readEnvList, readEnvOr } from "@/lib/env";
 
 /** Override with ALLOWED_EMAIL_DOMAIN if the company domain is ever different. */
-const ALLOWED_DOMAIN = process.env.ALLOWED_EMAIL_DOMAIN?.trim() || "sparklabs.co.kr";
+const ALLOWED_DOMAIN = readEnvOr("ALLOWED_EMAIL_DOMAIN", "sparklabs.co.kr");
 
 /**
  * Named exceptions, comma separated in ALLOWED_EMAILS.
@@ -40,10 +29,7 @@ const ALLOWED_DOMAIN = process.env.ALLOWED_EMAIL_DOMAIN?.trim() || "sparklabs.co
  * second domain: every entry is a decision someone made, and `vercel env ls`
  * shows the whole list. Empty in the normal case.
  */
-const EXTRA_EMAILS = (process.env.ALLOWED_EMAILS ?? "")
-  .split(",")
-  .map((email) => email.trim().toLowerCase())
-  .filter(Boolean);
+const EXTRA_EMAILS = readEnvList("ALLOWED_EMAILS");
 
 export function allowedDomain(): string {
   return ALLOWED_DOMAIN;
@@ -96,19 +82,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
 
     /**
-     * Re-checks on every request rather than trusting the token forever. If
-     * someone leaves the company and their Google account is suspended they
-     * can't sign in again, but an already-issued token would otherwise keep
-     * working until it expired.
+     * Re-checks the address on every request rather than trusting the token
+     * until it expires. Returning null throws the session away, so removing
+     * someone from ALLOWED_EMAILS - or a colleague leaving and losing their
+     * company address - takes effect on their next request rather than
+     * whenever their cookie happens to lapse.
      */
     jwt({ token }) {
-      token.allowed = isAllowedEmail(token.email, true);
-      return token;
-    },
-
-    session({ session, token }) {
-      if (session.user) session.user.email = token.email ?? session.user.email;
-      return session;
+      return isAllowedEmail(token.email, true) ? token : null;
     },
   },
 
