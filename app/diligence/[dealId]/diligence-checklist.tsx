@@ -5,7 +5,10 @@ import Link from "next/link";
 import type { Deal } from "@/lib/deals";
 import type { CheckState } from "@/lib/diligence-store";
 import type { Comment } from "@/lib/comments-store";
+import type { AnalysisRecord } from "@/lib/analysis-store";
+import { MIN_DOCS_FOR_SUGGESTIONS } from "@/lib/analysis";
 import CheckComments from "./check-comments";
+import CheckAnalysisPanel from "./check-analysis";
 import { T } from "@/lib/i18n";
 import { describe } from "@/lib/errors";
 import { useLang } from "@/app/lang-provider";
@@ -49,6 +52,8 @@ export default function DiligenceChecklist({
   sections,
   initialChecks,
   initialComments,
+  initialAnalysis,
+  uploadedCount,
   viewerEmail,
   missingCount,
   totalRequired,
@@ -57,6 +62,8 @@ export default function DiligenceChecklist({
   sections: Section[];
   initialChecks: Record<string, CheckState>;
   initialComments: Record<string, Comment[]>;
+  initialAnalysis: AnalysisRecord;
+  uploadedCount: number;
   viewerEmail: string | null;
   missingCount: number;
   totalRequired: number;
@@ -69,6 +76,11 @@ export default function DiligenceChecklist({
   const [saving, setSaving] = useState(0);
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+
+  const [analysis, setAnalysis] = useState(initialAnalysis);
+  const [analysing, setAnalysing] = useState(false);
+  const [analysisProgress, setAnalysisProgress] = useState<string | null>(null);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
 
   // One pending timer per item, so typing in one memo never delays another.
   const noteTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
@@ -128,9 +140,53 @@ export default function DiligenceChecklist({
     );
   }
 
+  /**
+   * Walks the checklist a few checks at a time.
+   *
+   * The server caps each request so a single call can't run for minutes; this
+   * keeps asking for what's left and shows how far it's got, rather than
+   * leaving someone staring at a spinner for the whole checklist.
+   */
+  async function runAnalysis(mode?: "extra") {
+    setAnalysing(true);
+    setAnalysisError(null);
+    setAnalysisProgress(null);
+
+    try {
+      let pending: string[] | null = null;
+      let done = 0;
+
+      do {
+        const response = await fetch(`/api/deals/${deal.id}/analysis`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(mode ? { mode } : { checkIds: pending }),
+        });
+
+        const parsed = await response.json().catch(() => null);
+        if (!response.ok) throw new Error(parsed?.error ?? `${response.status}`);
+
+        setAnalysis(parsed as AnalysisRecord);
+
+        if (mode) break;
+
+        const remaining: string[] = parsed.remaining ?? [];
+        done = allItems.length - remaining.length;
+        setAnalysisProgress(`${done} / ${allItems.length}`);
+        pending = remaining.length > 0 ? remaining : null;
+      } while (pending);
+    } catch (problem) {
+      setAnalysisError(describe(problem));
+    } finally {
+      setAnalysing(false);
+      setAnalysisProgress(null);
+    }
+  }
+
   const allItems = sections.flatMap((section) => section.items);
   const doneCount = allItems.filter((item) => checks[item.id]?.checked).length;
   const complete = doneCount === allItems.length;
+  const analysedCount = Object.keys(analysis.checks).length;
 
   return (
     <main className="mx-auto w-full max-w-3xl px-6 py-10">
@@ -180,6 +236,33 @@ export default function DiligenceChecklist({
             <Link href={`/deal/${deal.id}`} className="underline">
               {t(T.viewSubmissions)}
             </Link>
+          </p>
+        )}
+      </section>
+
+      {/* AI analysis */}
+      <section className="mt-4 rounded-xl border border-neutral-200 p-4 dark:border-neutral-800">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h2 className="text-sm font-semibold">{t(T.aiAnalysis)}</h2>
+            <p className="mt-0.5 text-xs text-neutral-500">{t(T.analysisIntro)}</p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => runAnalysis()}
+            disabled={analysing}
+            className="shrink-0 rounded-lg bg-neutral-900 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50 dark:bg-white dark:text-neutral-900"
+          >
+            {analysing
+              ? `${t(T.analysing)}${analysisProgress ? ` ${analysisProgress}` : ""}`
+              : t(analysedCount > 0 ? T.rerunAnalysis : T.runAnalysis)}
+          </button>
+        </div>
+
+        {analysisError && (
+          <p className="mt-2 text-xs text-red-600 dark:text-red-400">
+            {t(T.analysisFailed)} — {analysisError}
           </p>
         )}
       </section>
@@ -282,6 +365,8 @@ export default function DiligenceChecklist({
                     </div>
                   )}
 
+                  <CheckAnalysisPanel analysis={analysis.checks[item.id]} />
+
                   <textarea
                     value={state.note}
                     onChange={(event) => editNote(item, event.target.value)}
@@ -302,6 +387,51 @@ export default function DiligenceChecklist({
           </ol>
         </section>
       ))}
+
+      {/* Checks the AI thinks this particular company needs, beyond the
+          standard list. Company-specific by nature, so it needs a reasonable
+          amount of paperwork on file before it has anything to go on. */}
+      <section className="mt-10 rounded-xl border border-dashed border-neutral-300 p-5 dark:border-neutral-700">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h2 className="text-lg font-semibold tracking-tight">{t(T.aiSuggested)}</h2>
+            <p className="mt-0.5 text-sm text-neutral-500">{t(T.aiSuggestedIntro)}</p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => runAnalysis("extra")}
+            disabled={analysing || uploadedCount < MIN_DOCS_FOR_SUGGESTIONS}
+            className="shrink-0 rounded-lg border border-neutral-300 px-3 py-1.5 text-xs font-medium transition-colors hover:bg-neutral-100 disabled:opacity-50 dark:border-neutral-700 dark:hover:bg-neutral-800"
+          >
+            {analysing ? t(T.analysing) : t(T.suggestExtra)}
+          </button>
+        </div>
+
+        {uploadedCount < MIN_DOCS_FOR_SUGGESTIONS ? (
+          <p className="mt-4 text-sm text-neutral-500">
+            {t(T.needMoreDocs)} ({uploadedCount} / {MIN_DOCS_FOR_SUGGESTIONS})
+          </p>
+        ) : analysis.extraChecks.length === 0 ? (
+          <p className="mt-4 text-sm text-neutral-500">
+            {analysis.extraCheckedAt ? t(T.noExtraChecks) : t(T.notAnalysed)}
+          </p>
+        ) : (
+          <ol className="mt-4 space-y-3">
+            {analysis.extraChecks.map((extra, index) => (
+              <li
+                key={`${extra.titleEn}-${index}`}
+                className="rounded-lg border border-neutral-200 p-4 dark:border-neutral-800"
+              >
+                <p className="font-medium">{pick(extra.titleKo, extra.titleEn)}</p>
+                <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
+                  {pick(extra.whyKo, extra.whyEn)}
+                </p>
+              </li>
+            ))}
+          </ol>
+        )}
+      </section>
 
       <footer className="mt-10 border-t border-neutral-200 pt-6 text-xs text-neutral-400 dark:border-neutral-800">
         {t(T.diligenceSource)}

@@ -6,7 +6,7 @@
  * The store is private, so files are not readable from a guessable URL.
  */
 
-import { del, list } from "@vercel/blob";
+import { del, get, list } from "@vercel/blob";
 
 export type UploadedFile = {
   filename: string;
@@ -45,6 +45,38 @@ export async function deleteUploadedFile(
   }
 
   await del(`${prefixForDeal(dealId)}${filename}`);
+}
+
+/**
+ * Biggest file we'll send to a model. IR decks run to 20MB, and base64 adds a
+ * third on top - past this the request is more likely to be rejected than to
+ * tell us anything, and the decks aren't what the checks read anyway.
+ */
+export const MAX_ANALYSIS_BYTES = 12 * 1024 * 1024;
+
+/**
+ * Pulls one uploaded file back out of storage as a base64 data URL, ready to
+ * hand to a model. Returns null when the file is missing or too large to be
+ * worth sending.
+ */
+export async function readFileAsDataUrl(
+  dealId: string,
+  filename: string,
+): Promise<string | null> {
+  if (!filename || filename.includes("/") || filename.includes("\\")) return null;
+
+  const found = await get(`${prefixForDeal(dealId)}${filename}`, {
+    access: "private",
+    useCache: true,
+  });
+
+  if (!found?.stream) return null;
+  if (found.blob.size && found.blob.size > MAX_ANALYSIS_BYTES) return null;
+
+  const bytes = Buffer.from(await new Response(found.stream).arrayBuffer());
+  const type = found.blob.contentType || "application/octet-stream";
+
+  return `data:${type};base64,${bytes.toString("base64")}`;
 }
 
 /**

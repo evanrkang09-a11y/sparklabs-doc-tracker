@@ -17,6 +17,7 @@ import { collectDealStatus } from "@/lib/deal-status";
 import { diligenceSectionsFor } from "@/lib/diligence";
 import { readDiligence, type DiligenceRecord } from "@/lib/diligence-store";
 import { readComments } from "@/lib/comments-store";
+import { readAnalysis } from "@/lib/analysis-store";
 import SiteHeader from "@/app/site-header";
 import DiligenceChecklist from "./diligence-checklist";
 
@@ -36,13 +37,25 @@ export default async function DiligencePage({
 
   const session = await auth();
 
-  const [status, saved, comments] = await Promise.all([
+  const [status, saved, comments, analysis] = await Promise.all([
     collectDealStatus(deal),
     // A checklist that has never been saved is the normal first case, but a
     // storage outage shouldn't hide the checklist itself - start it empty.
     readDiligence(dealId).catch((): DiligenceRecord => ({ dealId, checks: {} })),
     readComments(dealId).catch(() => ({})),
+    readAnalysis(dealId).catch(() => ({
+      dealId,
+      checks: {},
+      extraChecks: [],
+      extraCheckedAt: null,
+    })),
   ]);
+
+  // Only counts what was actually uploaded - a Drive-sourced file can't be
+  // sent to the model, so it shouldn't raise expectations of an analysis.
+  const uploadedCount = status.documents
+    .flatMap((doc) => doc.files)
+    .filter((file) => file.source === "upload").length;
 
   // Which documents each check depends on, and whether they have arrived.
   const documentsById = new Map(status.documents.map((doc) => [doc.id, doc]));
@@ -77,6 +90,8 @@ export default async function DiligencePage({
         sections={sections}
         initialChecks={saved.checks}
         initialComments={comments}
+        initialAnalysis={analysis}
+        uploadedCount={uploadedCount}
         viewerEmail={session?.user?.email ?? null}
         missingCount={status.missingCount}
         totalRequired={status.totalRequired}

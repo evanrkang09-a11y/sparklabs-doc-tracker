@@ -123,6 +123,50 @@ export const T = {
   ddRemaining: { ko: "실사 미확인", en: "checks outstanding" },
   statusUnknown: { ko: "상태 확인 불가", en: "Status unavailable" },
 
+  // --- dashboard ---
+  overview: { ko: "전체 현황", en: "Overview" },
+  companiesTracked: { ko: "관리 중인 기업", en: "Companies tracked" },
+  docsReady: { ko: "서류 완료", en: "Documents complete" },
+  ddReady: { ko: "실사 완료", en: "Diligence complete" },
+  needsAttention: { ko: "확인 필요", en: "Needs attention" },
+  allCompanies: { ko: "전체 기업", en: "All companies" },
+  progressDocs: { ko: "서류", en: "Documents" },
+  progressDd: { ko: "실사", en: "Diligence" },
+
+  // --- AI analysis ---
+  aiAnalysis: { ko: "AI 분석", en: "AI analysis" },
+  runAnalysis: { ko: "AI로 서류 분석하기", en: "Analyse documents with AI" },
+  rerunAnalysis: { ko: "다시 분석", en: "Re-analyse" },
+  analysing: { ko: "분석 중…", en: "Analysing…" },
+  analysisIntro: {
+    ko: "업로드된 서류를 읽고 각 실사 항목이 충족되는지 검토합니다. 체크는 사람이 직접 합니다.",
+    en: "Reads the uploaded documents and assesses each check. Ticking stays a human decision.",
+  },
+  notAnalysed: { ko: "아직 분석하지 않았습니다.", en: "Not analysed yet." },
+  verdictMet: { ko: "충족으로 보임", en: "Looks satisfied" },
+  verdictIssues: { ko: "문제 발견", en: "Problems found" },
+  verdictUnclear: { ko: "판단 불가", en: "Can't tell" },
+  keyFacts: { ko: "확인된 내용", en: "What was found" },
+  issuesFound: { ko: "문제점", en: "Problems" },
+  whatToDo: { ko: "다음 할 일", en: "What to do next" },
+  documentsRead: { ko: "읽은 서류", en: "Documents read" },
+  analysedAt: { ko: "분석 시각", en: "Analysed" },
+  analysisFailed: { ko: "분석 실패", en: "Analysis failed" },
+  aiSuggested: { ko: "AI 추가 검토 제안", en: "Additional checks suggested by AI" },
+  aiSuggestedIntro: {
+    ko: "표준 체크리스트에는 없지만, 이 기업의 서류를 보고 확인이 필요하다고 판단한 항목입니다.",
+    en: "Not on the standard checklist, but worth checking based on this company's documents.",
+  },
+  suggestExtra: { ko: "추가 검토 항목 찾기", en: "Find additional checks" },
+  needMoreDocs: {
+    ko: "서류가 더 업로드되어야 추가 검토 항목을 제안할 수 있습니다.",
+    en: "More documents are needed before extra checks can be suggested.",
+  },
+  noExtraChecks: {
+    ko: "표준 체크리스트 외에 추가로 확인할 사항은 발견되지 않았습니다.",
+    en: "Nothing found beyond the standard checklist.",
+  },
+
   // --- comments ---
   comments: { ko: "코멘트", en: "Comments" },
   commentPlaceholder: {

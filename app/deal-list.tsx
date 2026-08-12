@@ -8,6 +8,8 @@ import { T } from "@/lib/i18n";
 import { describe } from "@/lib/errors";
 import { useLang } from "./lang-provider";
 import AddCompanyForm from "./add-company-form";
+import CompanySidebar from "./company-sidebar";
+import Dashboard from "./dashboard";
 
 export type DealSummary = Pick<
   Deal,
@@ -32,21 +34,36 @@ export default function DealList({
 
   const [adding, setAdding] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
+  const [selectedBatch, setSelectedBatch] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const visible = deals.filter((deal) => showArchived || !deal.archived);
   const archivedCount = deals.filter((deal) => deal.archived).length;
 
+  const visible = deals
+    .filter((deal) => showArchived || !deal.archived)
+    .filter((deal) =>
+      selectedBatch === null
+        ? true
+        : selectedBatch === "__none__"
+          ? !deal.batchId
+          : deal.batchId === selectedBatch,
+    );
+
   // Batches in creation order, then anything unassigned last - an unassigned
-  // pile at the top would push the real groupings down the page.
-  const groups: { batch: Batch | null; deals: DealSummary[] }[] = [
-    ...batches.map((batch) => ({
-      batch,
-      deals: visible.filter((deal) => deal.batchId === batch.id),
-    })),
-    { batch: null, deals: visible.filter((deal) => !deal.batchId) },
-  ].filter((group) => group.deals.length > 0 || group.batch !== null);
+  // pile at the top would push the real groupings down the page. When the
+  // sidebar has narrowed to one batch, the headings stop earning their space.
+  const showHeadings = selectedBatch === null;
+
+  const groups: { batch: Batch | null; deals: DealSummary[] }[] = showHeadings
+    ? [
+        ...batches.map((batch) => ({
+          batch,
+          deals: visible.filter((deal) => deal.batchId === batch.id),
+        })),
+        { batch: null, deals: visible.filter((deal) => !deal.batchId) },
+      ].filter((group) => group.deals.length > 0 || group.batch !== null)
+    : [{ batch: null, deals: visible }];
 
   async function act(dealId: string, run: () => Promise<Response>) {
     setBusyId(dealId);
@@ -97,6 +114,19 @@ export default function DealList({
         <span className="mt-2 block text-neutral-500">{t(T.homeInternalWarning)}</span>
       </p>
 
+      <Dashboard deals={deals} />
+
+      {/* Sidebar left, list right. Stacks on narrow screens - the sidebar
+          becomes a scrollable strip of batches rather than vanishing. */}
+      <div className="lg:grid lg:grid-cols-[13rem_1fr] lg:gap-8">
+        <CompanySidebar
+          deals={deals}
+          batches={batches}
+          selectedBatch={selectedBatch}
+          onSelectBatch={setSelectedBatch}
+        />
+
+        <div className="min-w-0">
       <div className="mb-6 flex flex-wrap items-center gap-2">
         <button
           type="button"
@@ -141,27 +171,29 @@ export default function DealList({
 
       {groups.map(({ batch, deals: groupDeals }) => (
         <section key={batch?.id ?? "unassigned"} className="mb-8">
-          <div className="mb-2 flex items-baseline justify-between gap-3 border-b border-neutral-200 pb-1.5 dark:border-neutral-800">
-            <h2 className="text-sm font-semibold">
-              {batch ? batch.name : t(T.unassigned)}
-              {batch?.note && (
-                <span className="ml-2 text-xs font-normal text-neutral-400">
-                  {batch.note}
-                </span>
-              )}
-            </h2>
+          {showHeadings && (
+            <div className="mb-2 flex items-baseline justify-between gap-3 border-b border-neutral-200 pb-1.5 dark:border-neutral-800">
+              <h2 className="text-sm font-semibold">
+                {batch ? batch.name : t(T.unassigned)}
+                {batch?.note && (
+                  <span className="ml-2 text-xs font-normal text-neutral-400">
+                    {batch.note}
+                  </span>
+                )}
+              </h2>
 
-            {batch && (
-              <button
-                type="button"
-                onClick={() => removeBatch(batch)}
-                disabled={busyId === batch.id}
-                className="shrink-0 text-xs text-neutral-400 transition-colors hover:text-red-600 disabled:opacity-50 dark:hover:text-red-400"
-              >
-                {t(T.deleteBatchLabel)}
-              </button>
-            )}
-          </div>
+              {batch && (
+                <button
+                  type="button"
+                  onClick={() => removeBatch(batch)}
+                  disabled={busyId === batch.id}
+                  className="shrink-0 text-xs text-neutral-400 transition-colors hover:text-red-600 disabled:opacity-50 dark:hover:text-red-400"
+                >
+                  {t(T.deleteBatchLabel)}
+                </button>
+              )}
+            </div>
+          )}
 
           {groupDeals.length === 0 ? (
             <p className="py-3 text-xs text-neutral-400">—</p>
@@ -180,6 +212,8 @@ export default function DealList({
           )}
         </section>
       ))}
+        </div>
+      </div>
     </>
   );
 }
