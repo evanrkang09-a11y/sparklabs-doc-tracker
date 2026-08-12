@@ -284,7 +284,30 @@ Honest limitations:
 - The delete endpoint blocks path traversal (`../`).
 - Real company documents are sensitive; only anonymized samples are used.
 - Neither the Drive folder ID nor any API key appears in this document.
-- The service account key was printed to the screen once during setup, so **it should be reissued.**
+
+### A real key exposure (2026-08-11)
+
+**What happened:** running `vercel blob create-store` to set up the Blob store **silently also ran `vercel env pull`** — the command that downloads every environment variable stored on Vercel into your local `.env.local`. The Google service account's **private key came down with it and was printed to the terminal**, ending up in the working log.
+
+**How far it spread (verified):**
+
+| Location | Status |
+|---|---|
+| Local conversation log (`.jsonl`) | 1 occurrence |
+| Git history | **None** — every commit checked |
+| GitHub or anywhere external | **None** — this repo has no remote and has never been pushed |
+
+**Risk: low**, for three reasons —
+
+1. It never left the laptop.
+2. The key only carries the `drive.readonly` scope, so it can read files but cannot delete or modify them.
+3. The Drive integration is currently switched off (`readsSampleDriveFolder: false`), so no code uses this key at all.
+
+**Action: delete, don't rotate.** There's no reason to issue a replacement for a key nothing uses. Google Cloud Console → IAM & Admin → Service Accounts → Keys → delete. **A key that doesn't exist can't leak.** If Drive support is ever switched back on, generate a fresh one then.
+
+**The lesson — and we avoided it the second time.** When the OpenRouter key arrived a few days later, the handling changed: the key was never typed into the chat at all. It went **straight into Notepad and the Vercel dashboard by hand**, and when the variable *name* needed checking, each line was split at the `=` and **only the left-hand side** printed. Verified result: **zero** occurrences of the OpenRouter key in the log.
+
+> **Rule: name the file the key goes in. Never ask for the value, and never print it.**
 
 ---
 
@@ -317,7 +340,7 @@ Honest limitations:
 - [ ] Week 3: AI cross-check — read **inside** documents, not just filenames, and flag mismatched numbers
 - [ ] Week 3: automatic contract draft generation
 - [ ] Login, to protect the internal screen
-- [ ] Reissue the service account key
+- [ ] Delete the service account key (see the §7 incident — no replacement needed, nothing uses it)
 
 ---
 
