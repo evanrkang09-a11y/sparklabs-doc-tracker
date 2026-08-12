@@ -2,29 +2,40 @@
  * Reads and updates one deal's 실사 checklist state.
  *
  * GET returns the saved ticks and memos. PATCH applies a single edit - one
- * checkbox or one memo - so that a slow save on one item can never clobber
- * what was typed into another.
+ * checkbox or one memo - keyed by which item it touches, so a save doesn't
+ * have to carry the whole checklist just to change one field.
+ *
+ * That said, the store underneath still reads and rewrites the whole record
+ * per edit (see lib/diligence-store.ts), so two edits landing in the same
+ * instant can still race. Fine for one analyst per deal; not a guarantee
+ * against concurrent editors.
  */
 
 import { getDeal } from "@/lib/deals";
+import { describe } from "@/lib/deal-status";
 import { isKnownCheckId } from "@/lib/diligence";
 import { readDiligence, saveDiligenceEdit } from "@/lib/diligence-store";
+
+function dealNotFound(dealId: string): Response {
+  return Response.json({ error: `Unknown deal: ${dealId}` }, { status: 404 });
+}
+
+async function respond(work: () => Promise<unknown>): Promise<Response> {
+  try {
+    return Response.json(await work());
+  } catch (problem) {
+    return Response.json({ error: describe(problem) }, { status: 500 });
+  }
+}
 
 export async function GET(
   request: Request,
   context: { params: Promise<{ dealId: string }> },
 ) {
   const { dealId } = await context.params;
+  if (!getDeal(dealId)) return dealNotFound(dealId);
 
-  if (!getDeal(dealId)) {
-    return Response.json({ error: `Unknown deal: ${dealId}` }, { status: 404 });
-  }
-
-  try {
-    return Response.json(await readDiligence(dealId));
-  } catch (problem) {
-    return Response.json({ error: describe(problem) }, { status: 500 });
-  }
+  return respond(() => readDiligence(dealId));
 }
 
 export async function PATCH(
@@ -32,10 +43,7 @@ export async function PATCH(
   context: { params: Promise<{ dealId: string }> },
 ) {
   const { dealId } = await context.params;
-
-  if (!getDeal(dealId)) {
-    return Response.json({ error: `Unknown deal: ${dealId}` }, { status: 404 });
-  }
+  if (!getDeal(dealId)) return dealNotFound(dealId);
 
   let body: unknown;
   try {
@@ -58,14 +66,5 @@ export async function PATCH(
     return Response.json({ error: "'note' must be a string" }, { status: 400 });
   }
 
-  try {
-    const record = await saveDiligenceEdit(dealId, { checkId, checked, note });
-    return Response.json(record);
-  } catch (problem) {
-    return Response.json({ error: describe(problem) }, { status: 500 });
-  }
-}
-
-function describe(problem: unknown): string {
-  return problem instanceof Error ? problem.message : "Unknown error";
+  return respond(() => saveDiligenceEdit(dealId, { checkId, checked, note }));
 }

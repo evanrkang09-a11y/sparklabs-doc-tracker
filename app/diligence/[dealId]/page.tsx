@@ -35,9 +35,7 @@ export default async function DiligencePage({
     collectDealStatus(deal),
     // A checklist that has never been saved is the normal first case, but a
     // storage outage shouldn't hide the checklist itself - start it empty.
-    readDiligence(dealId).catch(
-      (): DiligenceRecord => ({ dealId, checks: {}, updatedAt: null }),
-    ),
+    readDiligence(dealId).catch((): DiligenceRecord => ({ dealId, checks: {} })),
   ]);
 
   // Which documents each check depends on, and whether they have arrived.

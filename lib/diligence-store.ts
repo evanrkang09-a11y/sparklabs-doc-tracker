@@ -32,7 +32,6 @@ export type DiligenceRecord = {
   dealId: string;
   /** Keyed by DiligenceItem id. Items never edited are simply absent. */
   checks: Record<string, CheckState>;
-  updatedAt: string | null;
 };
 
 export type CheckEdit = {
@@ -49,7 +48,7 @@ function pathFor(dealId: string): string {
 }
 
 function emptyRecord(dealId: string): DiligenceRecord {
-  return { dealId, checks: {}, updatedAt: null };
+  return { dealId, checks: {} };
 }
 
 /**
@@ -77,15 +76,13 @@ export async function saveDiligenceEdit(
   }
 
   const record = await readDiligence(dealId);
-  const now = new Date().toISOString();
   const existing = record.checks[edit.checkId];
 
   record.checks[edit.checkId] = {
     checked: edit.checked ?? existing?.checked ?? false,
     note: (edit.note ?? existing?.note ?? "").slice(0, MAX_NOTE_LENGTH),
-    updatedAt: now,
+    updatedAt: new Date().toISOString(),
   };
-  record.updatedAt = now;
 
   await put(pathFor(dealId), JSON.stringify(record, null, 2), {
     access: "private",
@@ -105,8 +102,7 @@ function sanitize(dealId: string, raw: unknown): DiligenceRecord {
   const record = emptyRecord(dealId);
   if (typeof raw !== "object" || raw === null) return record;
 
-  const { checks, updatedAt } = raw as Partial<DiligenceRecord>;
-  if (typeof updatedAt === "string") record.updatedAt = updatedAt;
+  const { checks } = raw as Partial<DiligenceRecord>;
   if (typeof checks !== "object" || checks === null) return record;
 
   for (const [checkId, state] of Object.entries(checks)) {

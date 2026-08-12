@@ -31,23 +31,32 @@ export async function collectDealStatus(deal: Deal): Promise<DealStatus> {
   const found: FoundFile[] = [];
   const warnings: string[] = [];
 
+  const readsDrive = deal.readsSampleDriveFolder && isDriveConfigured();
+
+  // Both sources are independent network calls - run them together instead
+  // of paying each round trip in sequence.
+  const [uploaded, drive] = await Promise.allSettled([
+    listUploadedFiles(deal.id),
+    readsDrive ? listDriveFilenames() : Promise.resolve([]),
+  ]);
+
   // What the company has uploaded through the site.
-  try {
-    for (const file of await listUploadedFiles(deal.id)) {
+  if (uploaded.status === "fulfilled") {
+    for (const file of uploaded.value) {
       found.push({ name: file.filename, source: "upload" });
     }
-  } catch (problem) {
-    warnings.push(`업로드 파일을 불러오지 못했습니다 — ${describe(problem)}`);
+  } else {
+    warnings.push(`업로드 파일을 불러오지 못했습니다 — ${describe(uploaded.reason)}`);
   }
 
   // Optionally also count the mentor's sample Drive folder.
-  if (deal.readsSampleDriveFolder && isDriveConfigured()) {
-    try {
-      for (const name of await listDriveFilenames()) {
+  if (readsDrive) {
+    if (drive.status === "fulfilled") {
+      for (const name of drive.value) {
         found.push({ name, source: "drive" });
       }
-    } catch (problem) {
-      warnings.push(`구글 드라이브를 불러오지 못했습니다 — ${describe(problem)}`);
+    } else {
+      warnings.push(`구글 드라이브를 불러오지 못했습니다 — ${describe(drive.reason)}`);
     }
   }
 
@@ -86,6 +95,7 @@ export async function collectDealStatus(deal: Deal): Promise<DealStatus> {
   };
 }
 
-function describe(problem: unknown): string {
+/** Shared by anything that needs to turn a caught value into a display string. */
+export function describe(problem: unknown): string {
   return problem instanceof Error ? problem.message : "unknown error";
 }
