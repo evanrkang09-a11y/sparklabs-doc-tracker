@@ -6,6 +6,14 @@ import type { Deal } from "@/lib/deals";
 
 type FoundFile = { name: string; source: "upload" | "drive" };
 
+type Suggestion = {
+  filename: string;
+  documentId: string;
+  documentNameKo: string;
+  confidence: number;
+  reason: string;
+};
+
 type TrackedDocument = {
   id: string;
   nameKo: string;
@@ -27,6 +35,52 @@ type StatusResponse = {
 
 const REFRESH_MS = 5000;
 
+/**
+ * One filename, with a remove button when we're the ones who stored it.
+ * Drive files aren't ours to delete - the app only has read access there.
+ */
+function FileLine({
+  file,
+  tone,
+  deleting,
+  onRemove,
+}: {
+  file: FoundFile;
+  tone: "found" | "unknown";
+  deleting: boolean;
+  onRemove: () => void;
+}) {
+  return (
+    <li className="group flex items-center gap-2">
+      <span
+        className={`truncate font-mono text-xs ${
+          tone === "found"
+            ? "text-emerald-700 dark:text-emerald-400"
+            : "text-neutral-500"
+        }`}
+      >
+        {file.name}
+        {file.source === "drive" && (
+          <span className="ml-1 font-sans text-neutral-400">(드라이브)</span>
+        )}
+      </span>
+
+      {file.source === "upload" && (
+        <button
+          type="button"
+          onClick={onRemove}
+          disabled={deleting}
+          aria-label={`${file.name} 삭제`}
+          title="삭제"
+          className="shrink-0 text-xs text-neutral-400 opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100 hover:text-red-600 disabled:opacity-100 dark:hover:text-red-400"
+        >
+          {deleting ? "삭제 중…" : "✕"}
+        </button>
+      )}
+    </li>
+  );
+}
+
 export default function DealTracker({ deal }: { deal: Deal }) {
   const [data, setData] = useState<StatusResponse | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -35,6 +89,11 @@ export default function DealTracker({ deal }: { deal: Deal }) {
   const [percent, setPercent] = useState(0);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
+  const [deleting, setDeleting] = useState<string | null>(null);
+
+  const [classifying, setClassifying] = useState(false);
+  const [suggestions, setSuggestions] = useState<Suggestion[] | null>(null);
+  const [classifyError, setClassifyError] = useState<string | null>(null);
 
   const fileInput = useRef<HTMLInputElement>(null);
 
@@ -79,6 +138,55 @@ export default function DealTracker({ deal }: { deal: Deal }) {
     setPercent(0);
     if (fileInput.current) fileInput.current.value = "";
     await refresh();
+  }
+
+  async function removeFile(name: string) {
+    // Blob deletes are permanent, and the company would have to find and
+    // re-upload the file. Worth one click of friction.
+    if (!confirm(`"${name}" 파일을 삭제할까요? 되돌릴 수 없습니다.`)) return;
+
+    setDeleting(name);
+    setUploadError(null);
+
+    try {
+      const response = await fetch(`/api/deals/${deal.id}/files`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ filename: name }),
+      });
+
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        throw new Error(body?.error ?? `서버 응답 ${response.status}`);
+      }
+
+      await refresh();
+    } catch (problem) {
+      const reason = problem instanceof Error ? problem.message : "알 수 없는 오류";
+      setUploadError(`${name} 삭제 실패 — ${reason}`);
+    } finally {
+      setDeleting(null);
+    }
+  }
+
+  async function classifyUnknown() {
+    setClassifying(true);
+    setClassifyError(null);
+    setSuggestions(null);
+
+    try {
+      const response = await fetch(`/api/deals/${deal.id}/classify`, {
+        method: "POST",
+      });
+      const body = await response.json();
+
+      if (!response.ok) throw new Error(body?.error ?? `서버 응답 ${response.status}`);
+      setSuggestions(body.suggestions);
+    } catch (problem) {
+      setClassifyError(problem instanceof Error ? problem.message : "알 수 없는 오류");
+    } finally {
+      setClassifying(false);
+    }
   }
 
   const complete = data ? data.missingCount === 0 : false;
@@ -234,15 +342,13 @@ export default function DealTracker({ deal }: { deal: Deal }) {
               {document.submitted ? (
                 <ul className="mt-1.5">
                   {document.files.map((file) => (
-                    <li
+                    <FileLine
                       key={`${file.source}:${file.name}`}
-                      className="truncate font-mono text-xs text-emerald-700 dark:text-emerald-400"
-                    >
-                      {file.name}
-                      {file.source === "drive" && (
-                        <span className="ml-1 font-sans text-neutral-400">(드라이브)</span>
-                      )}
-                    </li>
+                      file={file}
+                      tone="found"
+                      deleting={deleting === file.name}
+                      onRemove={() => removeFile(file.name)}
+                    />
                   ))}
                 </ul>
               ) : (
@@ -264,20 +370,71 @@ export default function DealTracker({ deal }: { deal: Deal }) {
       {/* Files we couldn't identify */}
       {data && data.unrecognized.length > 0 && (
         <section className="mt-8 rounded-lg border border-neutral-200 p-4 dark:border-neutral-800">
-          <h2 className="text-sm font-medium">분류되지 않은 파일</h2>
-          <p className="mt-0.5 text-xs text-neutral-500">
-            업로드는 되었지만 어떤 서류인지 파일명으로 판별하지 못했습니다.
-          </p>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-medium">분류되지 않은 파일</h2>
+              <p className="mt-0.5 text-xs text-neutral-500">
+                업로드는 되었지만 어떤 서류인지 파일명으로 판별하지 못했습니다.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={classifyUnknown}
+              disabled={classifying}
+              className="shrink-0 rounded-lg border border-neutral-300 px-3 py-1.5 text-xs font-medium transition-colors hover:bg-neutral-100 disabled:opacity-50 dark:border-neutral-700 dark:hover:bg-neutral-800"
+            >
+              {classifying ? "확인 중…" : "AI로 추정하기"}
+            </button>
+          </div>
           <ul className="mt-2">
             {data.unrecognized.map((file) => (
-              <li
+              <FileLine
                 key={`${file.source}:${file.name}`}
-                className="truncate font-mono text-xs text-neutral-500"
-              >
-                {file.name}
-              </li>
+                file={file}
+                tone="unknown"
+                deleting={deleting === file.name}
+                onRemove={() => removeFile(file.name)}
+              />
             ))}
           </ul>
+
+          {classifyError && (
+            <p className="mt-3 text-xs text-red-600 dark:text-red-400">
+              AI 추정 실패 — {classifyError}
+            </p>
+          )}
+
+          {suggestions?.length === 0 && (
+            <p className="mt-3 text-xs text-neutral-500">
+              어떤 서류인지 추정하지 못했습니다. 파일명을 알아보기 쉽게 바꿔서 다시
+              올려주세요.
+            </p>
+          )}
+
+          {suggestions && suggestions.length > 0 && (
+            <div className="mt-3 rounded-lg bg-neutral-50 p-3 dark:bg-neutral-900">
+              <p className="text-xs text-neutral-500">
+                AI 추정 결과입니다. 확인 후 파일명을 바꿔서 다시 업로드하면 자동으로
+                분류됩니다.
+              </p>
+              <ul className="mt-2 space-y-1.5">
+                {suggestions.map((guess) => (
+                  <li key={guess.filename} className="text-xs">
+                    <span className="font-mono text-neutral-500">{guess.filename}</span>
+                    <span className="mx-1.5 text-neutral-400">→</span>
+                    <span className="font-medium">{guess.documentNameKo}</span>
+                    <span className="ml-1.5 text-neutral-400">
+                      확신도 {Math.round(guess.confidence * 100)}%
+                    </span>
+                    {guess.reason && (
+                      <span className="mt-0.5 block text-neutral-400">{guess.reason}</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </section>
       )}
 

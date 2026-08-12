@@ -6,7 +6,7 @@
  * The store is private, so files are not readable from a guessable URL.
  */
 
-import { list } from "@vercel/blob";
+import { del, list } from "@vercel/blob";
 
 export type UploadedFile = {
   filename: string;
@@ -26,6 +26,25 @@ export function prefixForDeal(dealId: string): string {
  */
 function listPage(prefix: string, cursor: string | undefined) {
   return list({ prefix, cursor, limit: 1000 });
+}
+
+/**
+ * Removes one uploaded file. Permanent - Blob has no undo.
+ *
+ * The path is rebuilt here from the deal id rather than taken from the caller,
+ * and a filename containing a slash is refused outright. Otherwise a filename
+ * like "../../diligence/zest.json" would delete something it has no business
+ * touching.
+ */
+export async function deleteUploadedFile(
+  dealId: string,
+  filename: string,
+): Promise<void> {
+  if (!filename || filename.includes("/") || filename.includes("\\")) {
+    throw new Error("Invalid filename");
+  }
+
+  await del(`${prefixForDeal(dealId)}${filename}`);
 }
 
 export async function listUploadedFiles(dealId: string): Promise<UploadedFile[]> {
