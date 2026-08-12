@@ -1,20 +1,93 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
-import type { Deal } from "@/lib/deals";
+import { useRouter } from "next/navigation";
+import type { Batch, Deal } from "@/lib/deals";
 import { T } from "@/lib/i18n";
+import { describe } from "@/lib/errors";
 import { useLang } from "./lang-provider";
+import AddCompanyForm from "./add-company-form";
 
-export type DealSummary = Pick<Deal, "id" | "companyKo" | "companyEn" | "market"> & {
-  requiredCount: number;
+export type DealSummary = Pick<
+  Deal,
+  "id" | "companyKo" | "companyEn" | "market" | "dealType" | "batchId" | "archived"
+> & {
+  /** Null when the status couldn't be read - shown as unknown rather than zero. */
+  missingCount: number | null;
+  totalRequired: number | null;
+  uncheckedCount: number;
+  totalChecks: number;
 };
 
-export default function DealList({ deals }: { deals: DealSummary[] }) {
-  const { lang, t, both } = useLang();
+export default function DealList({
+  deals,
+  batches,
+}: {
+  deals: DealSummary[];
+  batches: Batch[];
+}) {
+  const { t, both } = useLang();
+  const router = useRouter();
+
+  const [adding, setAdding] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const visible = deals.filter((deal) => showArchived || !deal.archived);
+  const archivedCount = deals.filter((deal) => deal.archived).length;
+
+  // Batches in creation order, then anything unassigned last - an unassigned
+  // pile at the top would push the real groupings down the page.
+  const groups: { batch: Batch | null; deals: DealSummary[] }[] = [
+    ...batches.map((batch) => ({
+      batch,
+      deals: visible.filter((deal) => deal.batchId === batch.id),
+    })),
+    { batch: null, deals: visible.filter((deal) => !deal.batchId) },
+  ].filter((group) => group.deals.length > 0 || group.batch !== null);
+
+  async function act(dealId: string, run: () => Promise<Response>) {
+    setBusyId(dealId);
+    setError(null);
+    try {
+      const response = await run();
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        throw new Error(body?.error ?? `${response.status}`);
+      }
+      router.refresh();
+    } catch (problem) {
+      setError(describe(problem));
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  const setArchived = (deal: DealSummary, archived: boolean) =>
+    act(deal.id, () =>
+      fetch(`/api/companies/${deal.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ archived }),
+      }),
+    );
+
+  const remove = (deal: DealSummary) => {
+    const [name] = both(deal.companyKo, deal.companyEn);
+    if (!confirm(`${name}\n\n${t(T.confirmDeleteCompany)}`)) return;
+    return act(deal.id, () => fetch(`/api/companies/${deal.id}`, { method: "DELETE" }));
+  };
+
+  const removeBatch = (batch: Batch) => {
+    if (!confirm(`${batch.name}\n\n${t(T.confirmDeleteBatch)}`)) return;
+    return act(batch.id, () => fetch(`/api/batches/${batch.id}`, { method: "DELETE" }));
+  };
 
   return (
     <>
-      <header className="mb-8">
+      <header className="mb-6">
         <h1 className="text-3xl font-semibold tracking-tight">{t(T.appName)}</h1>
         <p className="mt-1 text-neutral-500">{t(T.appTagline)}</p>
       </header>
@@ -24,39 +97,200 @@ export default function DealList({ deals }: { deals: DealSummary[] }) {
         <span className="mt-2 block text-neutral-500">{t(T.homeInternalWarning)}</span>
       </p>
 
-      <ul className="divide-y divide-neutral-200 dark:divide-neutral-800">
-        {deals.map((deal) => {
-          const [name, otherName] = both(deal.companyKo, deal.companyEn);
+      <div className="mb-6 flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={() => setAdding((open) => !open)}
+          className="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white dark:bg-white dark:text-neutral-900"
+        >
+          {adding ? t(T.cancel) : t(T.addCompany)}
+        </button>
 
-          return (
-            <li key={deal.id} className="flex items-center justify-between gap-4 py-4">
-              <Link
-                href={`/deal/${deal.id}`}
-                className="min-w-0 transition-opacity hover:opacity-70"
-              >
-                <p className="font-medium">{name}</p>
-                <p className="text-sm text-neutral-500">
-                  {otherName} &middot;{" "}
-                  {t(deal.market === "overseas" ? T.overseasCompany : T.domesticCompany)}{" "}
-                  &middot;{" "}
-                  {/* Written as a whole clause per language: Korean puts the
-                      count before the unit, English puts it after. */}
-                  {lang === "ko"
-                    ? `필수 ${deal.requiredCount}건`
-                    : `${deal.requiredCount} required`}
-                </p>
-              </Link>
+        {archivedCount > 0 && (
+          <button
+            type="button"
+            onClick={() => setShowArchived((show) => !show)}
+            className="rounded-lg border border-neutral-300 px-3 py-2 text-sm transition-colors hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-800"
+          >
+            {t(showArchived ? T.hideArchived : T.showArchived)} ({archivedCount})
+          </button>
+        )}
+      </div>
 
-              <Link
-                href={`/diligence/${deal.id}`}
-                className="shrink-0 rounded-lg border border-neutral-300 px-3 py-1.5 text-sm transition-colors hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-900"
+      {adding && (
+        <AddCompanyForm
+          batches={batches}
+          onDone={() => {
+            setAdding(false);
+            router.refresh();
+          }}
+        />
+      )}
+
+      {error && (
+        <p className="mb-4 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+          {error}
+        </p>
+      )}
+
+      {visible.length === 0 && !adding && (
+        <p className="rounded-xl border border-dashed border-neutral-300 px-6 py-10 text-center text-sm text-neutral-500 dark:border-neutral-700">
+          {t(T.noCompanies)}
+        </p>
+      )}
+
+      {groups.map(({ batch, deals: groupDeals }) => (
+        <section key={batch?.id ?? "unassigned"} className="mb-8">
+          <div className="mb-2 flex items-baseline justify-between gap-3 border-b border-neutral-200 pb-1.5 dark:border-neutral-800">
+            <h2 className="text-sm font-semibold">
+              {batch ? batch.name : t(T.unassigned)}
+              {batch?.note && (
+                <span className="ml-2 text-xs font-normal text-neutral-400">
+                  {batch.note}
+                </span>
+              )}
+            </h2>
+
+            {batch && (
+              <button
+                type="button"
+                onClick={() => removeBatch(batch)}
+                disabled={busyId === batch.id}
+                className="shrink-0 text-xs text-neutral-400 transition-colors hover:text-red-600 disabled:opacity-50 dark:hover:text-red-400"
               >
-                {t(T.tabDiligence)}
-              </Link>
-            </li>
-          );
-        })}
-      </ul>
+                {t(T.deleteBatchLabel)}
+              </button>
+            )}
+          </div>
+
+          {groupDeals.length === 0 ? (
+            <p className="py-3 text-xs text-neutral-400">—</p>
+          ) : (
+            <ul className="divide-y divide-neutral-200 dark:divide-neutral-800">
+              {groupDeals.map((deal) => (
+                <DealRow
+                  key={deal.id}
+                  deal={deal}
+                  busy={busyId === deal.id}
+                  onArchive={() => setArchived(deal, !deal.archived)}
+                  onDelete={() => remove(deal)}
+                />
+              ))}
+            </ul>
+          )}
+        </section>
+      ))}
     </>
+  );
+}
+
+function DealRow({
+  deal,
+  busy,
+  onArchive,
+  onDelete,
+}: {
+  deal: DealSummary;
+  busy: boolean;
+  onArchive: () => void;
+  onDelete: () => void;
+}) {
+  const { t, both } = useLang();
+  const [name, otherName] = both(deal.companyKo, deal.companyEn);
+
+  return (
+    <li className={`py-3 ${deal.archived ? "opacity-55" : ""}`}>
+      <div className="flex items-start justify-between gap-4">
+        <Link
+          href={`/deal/${deal.id}`}
+          className="min-w-0 flex-1 transition-opacity hover:opacity-70"
+        >
+          <p className="flex flex-wrap items-center gap-x-2 font-medium">
+            {name}
+            {deal.archived && (
+              <span className="rounded bg-neutral-200 px-1.5 py-0.5 text-[10px] font-normal text-neutral-600 dark:bg-neutral-700 dark:text-neutral-300">
+                {t(T.archived)}
+              </span>
+            )}
+          </p>
+          <p className="text-sm text-neutral-500">
+            {otherName} &middot;{" "}
+            {t(deal.market === "overseas" ? T.overseasCompany : T.domesticCompany)}
+          </p>
+
+          <div className="mt-1.5 flex flex-wrap gap-1.5">
+            <DocsBadge deal={deal} />
+            <DiligenceBadge deal={deal} />
+          </div>
+        </Link>
+
+        <div className="flex shrink-0 flex-col items-end gap-1">
+          <Link
+            href={`/diligence/${deal.id}`}
+            className="rounded-lg border border-neutral-300 px-2.5 py-1 text-xs transition-colors hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-900"
+          >
+            {t(T.tabDiligence)}
+          </Link>
+
+          <div className="flex gap-2 text-xs text-neutral-400">
+            <button
+              type="button"
+              onClick={onArchive}
+              disabled={busy}
+              className="transition-colors hover:text-neutral-700 disabled:opacity-50 dark:hover:text-neutral-200"
+            >
+              {t(deal.archived ? T.unarchive : T.archive)}
+            </button>
+            <button
+              type="button"
+              onClick={onDelete}
+              disabled={busy}
+              className="transition-colors hover:text-red-600 disabled:opacity-50 dark:hover:text-red-400"
+            >
+              {t(T.deleteCompany)}
+            </button>
+          </div>
+        </div>
+      </div>
+    </li>
+  );
+}
+
+function Badge({ tone, children }: { tone: "good" | "warn" | "muted"; children: React.ReactNode }) {
+  const styles = {
+    good: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300",
+    warn: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300",
+    muted: "bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400",
+  }[tone];
+
+  return <span className={`rounded px-1.5 py-0.5 text-xs ${styles}`}>{children}</span>;
+}
+
+function DocsBadge({ deal }: { deal: DealSummary }) {
+  const { lang, t } = useLang();
+
+  if (deal.missingCount === null) return <Badge tone="muted">{t(T.statusUnknown)}</Badge>;
+  if (deal.missingCount === 0) return <Badge tone="good">{t(T.docsComplete)}</Badge>;
+
+  return (
+    <Badge tone="warn">
+      {lang === "ko"
+        ? `서류 ${deal.missingCount}건 미비`
+        : `${deal.missingCount} documents missing`}
+    </Badge>
+  );
+}
+
+function DiligenceBadge({ deal }: { deal: DealSummary }) {
+  const { lang, t } = useLang();
+
+  if (deal.uncheckedCount === 0) return <Badge tone="good">{t(T.ddComplete)}</Badge>;
+
+  return (
+    <Badge tone="muted">
+      {lang === "ko"
+        ? `실사 ${deal.uncheckedCount}건 미확인`
+        : `${deal.uncheckedCount} checks outstanding`}
+    </Badge>
   );
 }

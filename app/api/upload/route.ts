@@ -8,7 +8,7 @@
 import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
 import { auth } from "@/auth";
 import { describe } from "@/lib/errors";
-import { getDeal } from "@/lib/deals";
+import { getDeal } from "@/lib/deals-store";
 import { prefixForDeal } from "@/lib/storage";
 
 // 50MB. IR decks are routinely 15-20MB.
@@ -32,7 +32,7 @@ export async function POST(request: Request): Promise<Response> {
         // Only allow uploads into a folder belonging to a deal we know about,
         // so nobody can use this endpoint as free file hosting.
         const dealId = pathname.split("/")[1] ?? "";
-        const deal = getDeal(dealId);
+        const deal = await getDeal(dealId);
 
         if (!deal || !pathname.startsWith(prefixForDeal(dealId))) {
           throw new Error("Upload path does not belong to a known deal");

@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { auth } from "@/auth";
-import { getDeal } from "@/lib/deals";
+import { getDeal } from "@/lib/deals-store";
 import SiteHeader from "@/app/site-header";
 import DealTracker from "./deal-tracker";
 
@@ -10,7 +10,7 @@ export default async function DealPage({
   params: Promise<{ dealId: string }>;
 }) {
   const { dealId } = await params;
-  const deal = getDeal(dealId);
+  const deal = await getDeal(dealId);
 
   if (!deal) {
     notFound();

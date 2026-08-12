@@ -8,7 +8,7 @@
  * turns anonymous API requests away with a 401 before they arrive here.
  */
 
-import { getDeal } from "@/lib/deals";
+import { getDeal } from "@/lib/deals-store";
 import { describe } from "@/lib/deal-status";
 import { deleteUploadedFile } from "@/lib/storage";
 
@@ -18,7 +18,7 @@ export async function DELETE(
 ) {
   const { dealId } = await context.params;
 
-  if (!getDeal(dealId)) {
+  if (!(await getDeal(dealId))) {
     return Response.json({ error: `Unknown deal: ${dealId}` }, { status: 404 });
   }
 

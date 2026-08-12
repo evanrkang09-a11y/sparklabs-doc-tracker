@@ -1,4 +1,4 @@
-import { getDeal } from "@/lib/deals";
+import { getDeal } from "@/lib/deals-store";
 import { collectDealStatus } from "@/lib/deal-status";
 
 export async function GET(
@@ -6,7 +6,7 @@ export async function GET(
   context: { params: Promise<{ dealId: string }> },
 ) {
   const { dealId } = await context.params;
-  const deal = getDeal(dealId);
+  const deal = await getDeal(dealId);
 
   if (!deal) {
     return Response.json({ error: `Unknown deal: ${dealId}` }, { status: 404 });

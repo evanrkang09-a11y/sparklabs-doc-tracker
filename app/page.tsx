@@ -1,27 +1,56 @@
 import { auth } from "@/auth";
-import { DEALS } from "@/lib/deals";
-import { documentsFor } from "@/lib/documents";
-import DealList from "./deal-list";
+import { getRegistry } from "@/lib/deals-store";
+import { collectDealStatus } from "@/lib/deal-status";
+import { readDiligence } from "@/lib/diligence-store";
+import { allDiligenceItems } from "@/lib/diligence";
+import DealList, { type DealSummary } from "./deal-list";
 import SiteHeader from "./site-header";
 
 export default async function Home() {
-  const session = await auth();
+  const [session, registry] = await Promise.all([auth(), getRegistry()]);
 
-  // Counting on the server keeps the whole document list out of the browser
-  // bundle - the home page only needs the number.
-  const deals = DEALS.map((deal) => ({
-    id: deal.id,
-    companyKo: deal.companyKo,
-    companyEn: deal.companyEn,
-    market: deal.market,
-    requiredCount: documentsFor(deal.market).filter((doc) => !doc.optional).length,
-  }));
+  const totalChecks = allDiligenceItems().length;
+
+  /**
+   * Each company's status needs a Blob listing and a diligence read, so the
+   * whole page is 2N round trips. Run them all at once - done one at a time
+   * this would get visibly slower with every company added.
+   *
+   * A company whose status can't be read still gets listed, with its counts
+   * unknown, rather than taking the whole page down with it.
+   */
+  const deals: DealSummary[] = await Promise.all(
+    registry.deals.map(async (deal) => {
+      const [status, diligence] = await Promise.all([
+        collectDealStatus(deal).catch(() => null),
+        readDiligence(deal.id).catch(() => null),
+      ]);
+
+      const checkedCount = diligence
+        ? Object.values(diligence.checks).filter((check) => check.checked).length
+        : 0;
+
+      return {
+        id: deal.id,
+        companyKo: deal.companyKo,
+        companyEn: deal.companyEn,
+        market: deal.market,
+        dealType: deal.dealType,
+        batchId: deal.batchId,
+        archived: deal.archived,
+        missingCount: status?.missingCount ?? null,
+        totalRequired: status?.totalRequired ?? null,
+        uncheckedCount: totalChecks - checkedCount,
+        totalChecks,
+      };
+    }),
+  );
 
   return (
     <>
       <SiteHeader userEmail={session?.user?.email} />
       <main className="mx-auto w-full max-w-3xl px-6 py-10">
-        <DealList deals={deals} />
+        <DealList deals={deals} batches={registry.batches} />
       </main>
     </>
   );

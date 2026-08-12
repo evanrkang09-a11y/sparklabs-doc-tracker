@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { Deal } from "@/lib/deals";
 import type { CheckState } from "@/lib/diligence-store";
+import type { Comment } from "@/lib/comments-store";
+import CheckComments from "./check-comments";
 import { T } from "@/lib/i18n";
 import { describe } from "@/lib/errors";
 import { useLang } from "@/app/lang-provider";
@@ -46,12 +48,16 @@ export default function DiligenceChecklist({
   deal,
   sections,
   initialChecks,
+  initialComments,
+  viewerEmail,
   missingCount,
   totalRequired,
 }: {
   deal: Deal;
   sections: Section[];
   initialChecks: Record<string, CheckState>;
+  initialComments: Record<string, Comment[]>;
+  viewerEmail: string | null;
   missingCount: number;
   totalRequired: number;
 }) {
@@ -282,6 +288,13 @@ export default function DiligenceChecklist({
                     rows={2}
                     placeholder={t(T.memoPlaceholder)}
                     className="mt-3 ml-8 block w-[calc(100%-2rem)] resize-y rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm placeholder:text-neutral-400 focus:border-neutral-400 focus:outline-none dark:border-neutral-800 dark:bg-neutral-950"
+                  />
+
+                  <CheckComments
+                    dealId={deal.id}
+                    checkId={item.id}
+                    initial={initialComments[item.id] ?? []}
+                    viewerEmail={viewerEmail}
                   />
                 </li>
               );

@@ -83,6 +83,58 @@ export const T = {
   domesticCompany: { ko: "국내 기업", en: "Korean company" },
   overseasCompany: { ko: "해외 기업", en: "Overseas company" },
 
+  // --- company management ---
+  addCompany: { ko: "기업 추가", en: "Add company" },
+  addBatch: { ko: "배치 추가", en: "Add batch" },
+  companyNameKo: { ko: "기업명 (한글)", en: "Company name (Korean)" },
+  companyNameEn: { ko: "기업명 (영문)", en: "Company name (English)" },
+  marketLabel: { ko: "국내 / 해외", en: "Domestic or overseas" },
+  dealTypeLabel: { ko: "유형", en: "Type" },
+  batchLabel: { ko: "배치", en: "Batch" },
+  noBatch: { ko: "배치 없음", en: "No batch" },
+  unassigned: { ko: "배치 미지정", en: "Unassigned" },
+  batchName: { ko: "배치 이름", en: "Batch name" },
+  batchNote: { ko: "메모 (선택)", en: "Note (optional)" },
+  save: { ko: "저장", en: "Save" },
+  saving2: { ko: "저장 중…", en: "Saving…" },
+  cancel: { ko: "취소", en: "Cancel" },
+  archive: { ko: "보관", en: "Archive" },
+  unarchive: { ko: "보관 해제", en: "Unarchive" },
+  archived: { ko: "보관됨", en: "Archived" },
+  showArchived: { ko: "보관된 기업 보기", en: "Show archived" },
+  hideArchived: { ko: "보관된 기업 숨기기", en: "Hide archived" },
+  deleteCompany: { ko: "영구 삭제", en: "Delete permanently" },
+  deleteBatchLabel: { ko: "배치 삭제", en: "Delete batch" },
+  confirmDeleteCompany: {
+    ko: "기업과 업로드된 서류, 실사 기록, 댓글이 모두 영구 삭제됩니다. 되돌릴 수 없습니다.",
+    en: "This permanently deletes the company along with its documents, diligence record and comments. It cannot be undone.",
+  },
+  confirmDeleteBatch: {
+    ko: "배치를 삭제할까요? 소속 기업은 삭제되지 않고 배치 미지정 상태가 됩니다.",
+    en: "Delete this batch? Its companies aren't deleted — they just become unassigned.",
+  },
+  noCompanies: {
+    ko: "아직 등록된 기업이 없습니다. '기업 추가'로 시작하세요.",
+    en: "No companies yet. Start with 'Add company'.",
+  },
+  docsComplete: { ko: "서류 완료", en: "Documents complete" },
+  docsMissing: { ko: "서류 미비", en: "documents missing" },
+  ddComplete: { ko: "실사 완료", en: "Diligence complete" },
+  ddRemaining: { ko: "실사 미확인", en: "checks outstanding" },
+  statusUnknown: { ko: "상태 확인 불가", en: "Status unavailable" },
+
+  // --- comments ---
+  comments: { ko: "코멘트", en: "Comments" },
+  commentPlaceholder: {
+    ko: "문제점이나 확인이 필요한 내용을 남기면 다른 팀원이 볼 수 있습니다.",
+    en: "Raise a problem or something that needs checking — the rest of the team will see it.",
+  },
+  postComment: { ko: "등록", en: "Post" },
+  posting: { ko: "등록 중…", en: "Posting…" },
+  noComments: { ko: "아직 코멘트가 없습니다.", en: "No comments yet." },
+  deleteComment: { ko: "삭제", en: "Delete" },
+  commentFailed: { ko: "코멘트 저장 실패", en: "Could not post comment" },
+
   // --- deal / upload ---
   preInvestmentDocs: { ko: "투자 전 제출 서류", en: "Pre-investment documents" },
   checking: { ko: "확인 중…", en: "Checking…" },

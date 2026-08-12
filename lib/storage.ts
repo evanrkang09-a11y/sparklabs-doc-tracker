@@ -47,6 +47,18 @@ export async function deleteUploadedFile(
   await del(`${prefixForDeal(dealId)}${filename}`);
 }
 
+/**
+ * Removes every uploaded file for a deal. Used when a company is deleted
+ * outright - otherwise its documents would linger in the store, unreachable
+ * but still there, which is the wrong answer for confidential paperwork.
+ */
+export async function deleteAllUploads(dealId: string): Promise<void> {
+  const files = await listUploadedFiles(dealId);
+  if (files.length === 0) return;
+
+  await del(files.map((file) => file.pathname));
+}
+
 export async function listUploadedFiles(dealId: string): Promise<UploadedFile[]> {
   const prefix = prefixForDeal(dealId);
   const files: UploadedFile[] = [];

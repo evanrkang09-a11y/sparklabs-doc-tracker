@@ -11,7 +11,7 @@
  * against concurrent editors.
  */
 
-import { getDeal } from "@/lib/deals";
+import { getDeal } from "@/lib/deals-store";
 import { describe } from "@/lib/deal-status";
 import { isKnownCheckId } from "@/lib/diligence";
 import { readDiligence, saveDiligenceEdit } from "@/lib/diligence-store";
@@ -33,7 +33,7 @@ export async function GET(
   context: { params: Promise<{ dealId: string }> },
 ) {
   const { dealId } = await context.params;
-  if (!getDeal(dealId)) return dealNotFound(dealId);
+  if (!(await getDeal(dealId))) return dealNotFound(dealId);
 
   return respond(() => readDiligence(dealId));
 }
@@ -43,7 +43,7 @@ export async function PATCH(
   context: { params: Promise<{ dealId: string }> },
 ) {
   const { dealId } = await context.params;
-  if (!getDeal(dealId)) return dealNotFound(dealId);
+  if (!(await getDeal(dealId))) return dealNotFound(dealId);
 
   let body: unknown;
   try {

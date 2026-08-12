@@ -6,7 +6,7 @@
  * filename is not a decision this app should make on its own.
  */
 
-import { getDeal } from "@/lib/deals";
+import { getDeal } from "@/lib/deals-store";
 import { collectDealStatus, describe } from "@/lib/deal-status";
 import { classifyFilenames, isAiConfigured, MIN_CONFIDENCE } from "@/lib/classify";
 import { documentsFor } from "@/lib/documents";
@@ -16,7 +16,7 @@ export async function POST(
   context: { params: Promise<{ dealId: string }> },
 ) {
   const { dealId } = await context.params;
-  const deal = getDeal(dealId);
+  const deal = await getDeal(dealId);
 
   if (!deal) {
     return Response.json({ error: `Unknown deal: ${dealId}` }, { status: 404 });

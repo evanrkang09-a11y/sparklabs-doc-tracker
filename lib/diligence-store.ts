@@ -18,7 +18,7 @@
  * changes, Blob's `ifMatch` option gives an ETag check to build on.
  */
 
-import { get, put } from "@vercel/blob";
+import { del, get, put } from "@vercel/blob";
 import { isKnownCheckId } from "./diligence";
 
 export type CheckState = {
@@ -92,6 +92,16 @@ export async function saveDiligenceEdit(
   });
 
   return record;
+}
+
+/** Throws away a deal's whole checklist. Used when a company is deleted. */
+export async function deleteDiligence(dealId: string): Promise<void> {
+  try {
+    await del(pathFor(dealId));
+  } catch {
+    // A deal that was never assessed has no record to remove, and that isn't
+    // a failure worth aborting the rest of the deletion over.
+  }
 }
 
 /**
