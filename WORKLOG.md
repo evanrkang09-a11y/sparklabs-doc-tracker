@@ -1,9 +1,9 @@
-# 작업 기록 — 서류 취합 트래커 (미니과제)
+# 작업 기록 — 서류 취합 트래커 + 서류 실사 체크리스트
 
-**Work log — Document Collection Tracker (mini-project)**
+**Work log — Document Collection Tracker & Due Diligence Checklist**
 
 작성자 / Author: Evan Kang
-날짜 / Date: 2026-08-11
+날짜 / Date: 2026-08-12
 배포 링크 / Live app: https://sparklabs-doc-tracker.vercel.app
 
 > 다음 기수 인턴을 위한 참고 자료입니다. 프롬프트 원문과 막혔던 지점을 그대로 남겼습니다.
@@ -13,11 +13,27 @@
 
 ## 1. 무엇을 만들었나 / What this is
 
-기업이 제출해야 할 서류 목록을 보여주고, 구글 드라이브 폴더를 감시해서 무엇이 제출됐고 무엇이 미비한지 화면에 표시하는 웹 앱입니다.
+두 개의 화면입니다.
 
-A web page that shows the documents a company owes us, watches a Google Drive folder, and reports which ones have arrived and which are still missing.
+**① 서류 취합 트래커 (기업용)** — `/deal/<기업>`
+투자 전 제출 서류 목록을 보여주고, **기업이 직접 자기 서류를 업로드**합니다. 파일이 올라오면 파일명으로 어떤 서류인지 자동 판별해서 체크가 됩니다. 기업별로 링크가 따로 있어서, 그 링크만 전달하면 됩니다.
 
-현재 상태 / Current state: **9건 중 1건 미비** (재무제표) — 멘토님의 실제 샘플 드라이브 폴더 기준.
+**② 서류 실사 체크리스트 (내부용)** — `/diligence/<기업>`
+제출된 서류들을 서로 대조하는 실사 항목 13개. 각 항목마다 체크박스와 메모가 있고 자동 저장됩니다.
+
+### 서류 목록 / The checklist
+
+- 국내 기업: 필수 18건 + 해당 시 3건
+- 해외 기업: 필수 10건 + 해당 시 1건
+
+두 리스트는 번역 관계가 아니라 **내용이 실제로 다릅니다.** (예: 해외는 Cap Table이 필수, 국내는 4대보험 가입자명부가 필수)
+
+### 실사 항목 / Due diligence items
+
+멘토님의 「#3. 서류 실사」 문서 13개 항목을 두 그룹으로 나눴습니다.
+
+- **서류 검증 (1~7번)** — 사업목적 일치, 발행주식수 일치, 정관 종류주식·신주인수권, 옵션풀, 등기 순서, 차입금·가수금, 주주 구성, 지식재산권, 최종 대조
+- **후속 절차 (8~13번)** — 서면 communication, 예비실사 고지, 계약서 작성, 계약 체결, 재무팀 공유, 투자심사보고서
 
 ### 기술 스택 / Stack
 
@@ -26,73 +42,88 @@ A web page that shows the documents a company owes us, watches a Google Drive fo
 | Framework | Next.js 16.3 (App Router) + React 19.2 |
 | Language | TypeScript |
 | Styling | Tailwind CSS v4 |
-| Drive 연동 | `googleapis`, service account, read-only scope |
+| 파일 저장 | Vercel Blob (private) |
 | 배포 | Vercel |
 
 ### 파일 구조 / Where the code lives
 
 | 파일 | 역할 |
 |---|---|
-| `lib/documents.ts` | 필수 서류 목록 + 파일명 매칭 로직. **여기만 고치면 서류 목록이 바뀝니다.** |
-| `lib/drive.ts` | 구글 드라이브 폴더의 파일명 목록을 가져옴 |
-| `app/api/documents/route.ts` | 파일명을 서류에 매칭하고 미비 건수를 계산 |
-| `app/page.tsx` | 화면. 5초마다 자동 새로고침 |
-| `scripts/list-drive.mjs` | 개발용 도구 — 드라이브 폴더 내용을 ID와 함께 출력 |
-| `sample-drive/` | 드라이브 연결이 안 될 때 쓰는 더미 파일 폴더 |
+| `lib/documents.ts` | 필수 서류 목록 + 파일명 매칭. **여기만 고치면 서류 목록이 바뀝니다.** |
+| `lib/diligence.ts` | 실사 항목 13개 정의 |
+| `lib/deals.ts` | 기업 목록. 2주차에 CRUD로 대체 예정 |
+| `lib/deal-status.ts` | 어떤 서류가 도착했는지 계산 (두 화면이 공유) |
+| `lib/storage.ts` | 업로드된 파일 목록 조회 |
+| `lib/diligence-store.ts` | 실사 체크·메모 저장 |
+| `app/deal/[dealId]/` | 기업용 업로드 화면 |
+| `app/diligence/[dealId]/` | 내부용 실사 화면 |
+| `app/api/upload/` | 업로드 토큰 발급 |
 
 ---
 
-## 2. 어떻게 만들었나 / How it was built
+## 2. 중간에 통째로 갈아엎은 것 / The rewrite
+
+**1차 버전은 방향이 틀렸습니다.** 처음에는 멘토님의 구글 드라이브 샘플 폴더를 앱이 읽어서, 그 폴더 상태를 화면에 보여주는 구조였습니다. 데모로는 그럴듯했지만 실무에서 쓸 수 없는 물건이었습니다.
+
+멘토님 피드백 세 가지:
+
+1. **기업이 직접 올릴 수 있어야 한다.** 우리가 폴더를 들여다보는 게 아니라, 기업별로 링크를 주고 기업이 업로드하는 구조여야 합니다.
+2. **서류 목록이 틀렸다.** 9건이 아니라 국내 18건 / 해외 10건입니다.
+3. **파일 번호의 6번, 9번이 비어 있던 건 아무 의미가 없다.** 샘플 배치를 만들면서 몇 개를 뺀 것뿐입니다.
+
+3번이 특히 뼈아팠습니다. 저는 **1차 작업 기록에 "6번과 9번이 무슨 서류인지 확인 필요"라고 적어놨었습니다.** 데이터에 있는 패턴이 전부 의미 있는 건 아닙니다. 추측을 기록으로 남기기 전에 물어봤어야 했습니다.
+
+**갈아엎으면서 얻은 것:** 드라이브 연동 코드(`lib/drive.ts`)는 지우지 않고 스위치만 꺼뒀습니다(`readsSampleDriveFolder: false`). 나중에 필요하면 다시 켜면 됩니다. git에도 남아 있습니다.
+
+---
+
+## 3. 어떻게 만들었나 / How it was built
 
 전부 Claude Code(터미널에서 실행되는 AI 코딩 도구)와 대화하면서 만들었습니다. 저는 코딩 경험이 없는 상태로 시작했습니다.
 
-Built entirely by talking to Claude Code in a terminal. I started with no programming experience.
-
 **가장 중요한 교훈: 한 번에 완성되는 큰 프롬프트는 없었습니다.** 짧은 요청을 계속 주고받는 방식이 훨씬 효과적이었습니다.
-
-**The biggest lesson: there was no single magic prompt.** Short back-and-forth beat long detailed requests every time.
 
 ### 실제로 사용한 프롬프트 / The prompts I actually used
 
-환경 설정 / Setup:
-
-```
-install python and git
-install node right now
-```
-
-과제 파악 / Understanding the assignment:
+과제 파악:
 
 ```
 can you find the original korean file for me and just translate it
 ```
 
-→ 멘토님이 주신 엑셀 과업지시서를 읽고 영어로 정리해줬습니다. 영어 버전 파일도 있었지만
-   불완전해서 한글 원본을 직접 읽게 하는 편이 정확했습니다.
+→ 영어 버전 파일도 있었지만 불완전해서, 한글 원본을 직접 읽게 하는 편이 정확했습니다.
 
-빌드 / Building:
-
-```
-lets deploy now
-```
-
-→ 앱 자체는 "구글 드라이브 폴더를 보고 어떤 서류가 빠졌는지 보여주는 화면을 만들어줘"에
-   해당하는 대화에서 나왔습니다. 요구사항 3가지를 그대로 읽어주는 것으로 충분했습니다.
-
-디버깅 / Debugging:
+방향 수정 (가장 중요했던 프롬프트):
 
 ```
-(에러 메시지를 그대로 복사해서 붙여넣기)
+ok so basically, what we have right now is not good enough. i talked with my
+mentor. he said that firstly, we want it to be something where the person who
+is uploading these files can be prompted to upload their files onto the
+website, so that it is user by user case, not like right now where we just
+went and showed our results to our specific file. also, our list of documents
+needed was incorrect. we needed much more, ill attach the list.
+```
+
+→ **멘토님 말씀을 정리하지 말고 그대로 옮기는 게 나았습니다.** 요약하면 뉘앙스가 날아갑니다.
+
+검증:
+
+```
+hey so where did you get the info regarding zest, and why is it checking off
+which documents we apparently have without the user having uploaded a file
+```
+
+→ 화면이 이상하면 바로 물어보세요. 실제로 버그였습니다. (아래 ②번)
+
+이해가 안 될 때:
+
+```
 im kinda lost, what did you just do. explain it to me like im 5
-so what exactly did we make just now
 ```
-
-→ **모르겠으면 모르겠다고 말하는 게 가장 빠릅니다.** 설명을 다시 요청하는 것이
-   이해 못 한 채로 진행하는 것보다 훨씬 시간을 아꼈습니다.
 
 ---
 
-## 3. 막혔던 지점과 해결 / What went wrong, and how it got fixed
+## 4. 막혔던 지점과 해결 / What went wrong, and how it got fixed
 
 평가 기준이 "결과보다 과정"이라고 되어 있어서, 실제로 막혔던 부분을 전부 남깁니다.
 
@@ -110,23 +141,23 @@ keywords: ["등기사항전부증명서", "등기사항증명서", "등기부등
 
 **교훈:** 실제 파일을 먼저 확인하지 않고 용어집만 보고 만들었으면 데모에서 틀렸을 겁니다. 코드를 짜기 전에 진짜 데이터를 먼저 보세요.
 
-### ② 용어집에 없는 서류가 폴더에 있었음
+### ② 아무것도 안 올렸는데 체크가 되어 있었음
 
-폴더에는 `사업소개서`와 `통장사본`이 있었는데 용어집에는 없었습니다. 둘 다 체크리스트에 추가했습니다.
+새 업로드 화면을 열었더니 **파일을 하나도 안 올렸는데 서류 몇 개가 이미 체크**되어 있었습니다. 멘토님 샘플 드라이브 폴더를 아직 읽고 있었기 때문입니다.
 
-또한 폴더의 파일 번호가 1,2,3,4,5,7,8,10 — **6번과 9번이 비어 있습니다.** 의도적인 미제출 상황으로 보이지만, 그 두 개가 무슨 서류인지는 멘토님께 확인이 필요합니다. (추정: 6번 재무제표, 9번 벤처기업확인증 계열)
+기업 입장에서는 "내가 안 냈는데 냈다고 나오는" 화면입니다. 스위치를 꺼서 해결했습니다.
 
-### ③ 배포 전에 TypeScript 에러
+**교훈:** 화면에 이상한 게 보이면 그냥 넘어가지 마세요. 물어본 덕분에 잡았습니다.
 
-`npm run build`를 로컬에서 먼저 돌렸더니 타입 에러가 나왔습니다. 이걸 안 하고 바로 배포했으면 Vercel에서 빌드 실패했을 겁니다.
+### ③ 4.5MB보다 큰 파일
 
-**교훈: 배포 전에 항상 로컬에서 `npm run build`를 돌려보세요.**
+IR덱은 보통 15~20MB입니다. (제스트 IR덱은 17MB) 그런데 서버를 거쳐 업로드하면 4.5MB에서 막힙니다.
+
+**해결:** 브라우저가 서버를 거치지 않고 저장소에 직접 올리는 방식(client upload)으로 바꿨습니다. 서버는 "이 경로에 올려도 된다"는 토큰만 발급합니다. 한도는 50MB로 잡았습니다.
 
 ### ④ 환경변수가 저장되지 않았음
 
 Vercel 대시보드에서 환경변수를 입력했는데 저장이 안 됐습니다. 화면상으로는 알 수 없었고, 배포된 앱이 계속 샘플 데이터를 보여줬습니다.
-
-확인 방법:
 
 ```
 npx vercel env ls
@@ -134,7 +165,13 @@ npx vercel env ls
 
 **교훈:** 환경변수는 **저장한 이후에 만든 배포부터** 적용됩니다. 저장했으면 반드시 다시 배포해야 합니다.
 
-### ⑤ 윈도우 PowerShell에서 npx 실행 불가
+### ⑤ 눈에 안 보이는 문자 때문에 인증 실패
+
+환경변수 값을 복사해서 붙여넣었더니 맨 앞에 눈에 보이지 않는 문자(BOM)가 딸려 들어갔습니다. 화면상으로는 완전히 똑같아 보이는데 인증만 실패합니다.
+
+**해결:** 값을 읽을 때 앞뒤 공백을 잘라내도록(`.trim()`) 했습니다.
+
+### ⑥ 윈도우 PowerShell에서 npx 실행 불가
 
 ```
 npx : File ...\npx.ps1 cannot be loaded because running scripts is disabled
@@ -146,47 +183,78 @@ npx : File ...\npx.ps1 cannot be loaded because running scripts is disabled
 Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
 ```
 
-### ⑥ 서비스 계정 권한
+### ⑦ 배포 전에 TypeScript 에러
 
-앱이 드라이브를 읽으려면 **앱 전용 구글 계정(service account)** 을 만들고, 그 계정의 이메일을 드라이브 폴더에 공유해야 합니다. 내 계정에 권한이 있는 것과 앱에 권한이 있는 것은 별개입니다.
+`npm run build`를 로컬에서 먼저 돌렸더니 타입 에러가 나왔습니다.
 
----
+**교훈: 배포 전에 항상 로컬에서 `npm run build`를 돌려보세요.**
 
-## 4. 설계에서 신경 쓴 점 / Design decisions worth keeping
+### ⑧ 테스트했더니 한글이 `???`로 나옴 — 앱 문제가 아니었음
 
-**드라이브가 죽어도 앱은 안 죽습니다.** 드라이브 연결이 실패하면 로컬 `sample-drive/` 폴더로 자동 전환되고, 화면에 빨간 배너로 이유를 표시합니다. 데모 중에 인증 문제가 생겨도 흰 화면이 뜨지 않습니다.
+실사 메모에 한글을 저장하고 다시 읽었더니 `???`가 나왔습니다. 앱 버그처럼 보였지만, PowerShell이 요청을 보낼 때 한글을 깨뜨린 것이었습니다. UTF-8로 명시해서 다시 보내니 정상이었습니다.
 
-**서류 목록은 한 파일에만 있습니다.** `lib/documents.ts`만 고치면 됩니다. 2주차 본과제에서 국내/해외 리스트를 나눌 때 여기서 확장하면 됩니다.
-
-**드라이브를 읽기 전용으로만 접근합니다.** `drive.readonly` scope만 요청해서, 앱이 실수로 멘토님 파일을 지우거나 수정할 수 없습니다.
-
-**선택 서류는 미비 건수에 포함하지 않습니다.** 벤처기업확인증, Cap Table은 '해당 시 제출'이라 필수 카운트에서 제외했습니다.
+**교훈:** 테스트가 실패하면 **테스트 도구부터 의심하세요.** 앱을 고치기 전에 확인해야 합니다.
 
 ---
 
-## 5. 보안 / Security notes
+## 5. 설계에서 신경 쓴 점 / Design decisions worth keeping
+
+**기업용 화면과 내부용 화면이 분리되어 있습니다.** 실사 체크리스트는 `/diligence/<기업>`에 있고, 기업에게 주는 링크(`/deal/<기업>`) 바로 아래에 두지 않았습니다. 넘겨준 링크 바로 옆에 있는 페이지는 절반쯤 넘겨준 것이나 마찬가지입니다. 검색엔진에도 노출되지 않도록(noindex) 처리했습니다.
+
+**다만 이건 정리정돈이지 보안이 아닙니다.** 주소를 아는 사람은 여전히 열 수 있습니다. 제대로 된 로그인은 아직 없습니다.
+
+**기업은 자기 폴더에만 올릴 수 있습니다.** 업로드 토큰을 발급할 때 경로가 등록된 기업의 폴더인지 확인합니다. 실사 메모는 아예 다른 경로(`diligence/`)에 저장해서, 기업이 손댈 수 없습니다.
+
+**서류가 도착했는지 판단하는 로직은 한 곳에만 있습니다.** `lib/deal-status.ts`를 두 화면이 공유합니다. 두 화면이 서로 다른 답을 내놓을 수가 없습니다.
+
+**실사 항목마다 필요한 서류가 표시됩니다.** '발행주식수 일치' 항목 아래에 등기부등본·주주명부가 태그로 붙고, 제출됐으면 초록색입니다. 아직 못 하는 실사 항목이 뭔지 한눈에 보입니다.
+
+**멘토님의 💡 Tip을 전부 살렸습니다.** 교수 자문료 이슈, 마이너스 통장 엄금, 차입금은 투자금으로 상환 불가 — 잊어버리기 쉬운데 중요한 내용들입니다.
+
+**저장소는 private입니다.** 실제 기업 서류가 올라가는 곳이라, 주소를 안다고 열리지 않습니다.
+
+---
+
+## 6. 보안 / Security notes
 
 - `service-account.json`과 `.env.local`은 `.gitignore`에 등록되어 있습니다. **절대 커밋하면 안 됩니다.**
-- 서비스 계정 키가 유출되면 구글 클라우드 콘솔에서 키를 삭제하고 새로 발급하면 됩니다.
-- 실제 기업 서류는 민감정보이므로 익명화된 샘플만 사용했습니다.
+- Vercel Blob 저장소는 `--access private`으로 만들었습니다.
+- 드라이브는 `drive.readonly` 권한만 요청했습니다. 앱이 실수로 파일을 지울 수 없습니다.
+- 실제 기업 서류는 민감정보이므로 익명화된 샘플만 사용합니다.
 - 이 문서에는 드라이브 폴더 ID를 적지 않았습니다.
+- 작업 중 서비스 계정 키가 화면에 출력된 적이 있어, **키 재발급이 필요합니다.**
 
 ---
 
-## 6. 다음 단계 / What's next
+## 7. 확인한 것 / What has actually been tested
 
-- [ ] 멘토님께 6번, 9번 서류가 무엇인지 확인 → 체크리스트 완성
-- [ ] 2주차: 서류 실사 체크리스트 UI (체크박스 + 메모)
-- [ ] 2주차: 데이터 모델 설계 (딜/서류항목/제출상태)
+- 브라우저에서 파일 끌어다 놓기 → 업로드 → 체크 표시까지 동작 확인
+- 실사 체크·메모 저장 후 새로고침 → 그대로 남아 있음 확인
+- 메모만 수정했을 때 체크박스가 풀리지 않는지 확인
+- 없는 실사 항목 / 없는 기업으로 요청 시 거부되는지 확인
+- 한글 저장·조회 정상 확인
+
+---
+
+## 8. 다음 단계 / What's next
+
+- [ ] 1주차: CRUD 1개 (범위 멘토님께 확인 필요)
+- [ ] 1주차: Claude API 연동 1개 (API 키 필요)
+- [ ] 2주차: 딜 CRUD — 코드가 아니라 화면에서 기업 추가
+- [ ] 2주차: 예비실사 체크리스트(사내 표준 양식) 확보 후 반영
 - [ ] 3주차: AI 크로스체크 — 서류 내용을 읽어 숫자 불일치 탐지
 - [ ] 3주차: 계약서 초안 자동 생성
+- [ ] 로그인 기능 — 내부용 화면 보호
+- [ ] 서비스 계정 키 재발급
 
 ---
 
-## 7. 다음 기수 인턴에게 / For the next intern
+## 9. 다음 기수 인턴에게 / For the next intern
 
 1. **에러 메시지는 그대로 복사해서 붙여넣으세요.** 요약하지 마세요. 못생긴 빨간 글자 안에 답이 있습니다.
-2. **이해 안 되면 바로 말하세요.** "쉽게 설명해줘"라고 하면 됩니다. 모르는 채로 넘어가면 나중에 발표에서 막힙니다.
+2. **멘토님 피드백도 그대로 옮기세요.** 요약하면 뉘앙스가 날아갑니다.
 3. **진짜 데이터를 먼저 보세요.** 문서만 보고 만들면 ①번 같은 버그가 납니다.
-4. **작게 만들고 바로 돌려보세요.** 화면 하나가 동작하는 걸 확인하고 다음으로 넘어가는 게 빠릅니다.
-5. **AI가 자신 있게 틀립니다.** "진짜 테스트해봤어?"라고 물어보세요. 실제로 돌려서 확인하기 전까지는 완성이 아닙니다.
+4. **다만 데이터의 모든 패턴이 의미 있는 건 아닙니다.** 저는 번호가 비어 있는 걸 보고 혼자 추측해서 기록까지 남겼는데, 그냥 샘플을 몇 개 뺀 것이었습니다. 추측하지 말고 물어보세요.
+5. **화면이 이상하면 바로 말하세요.** "왜 이게 체크되어 있어?" 한마디로 버그를 잡았습니다.
+6. **AI가 자신 있게 틀립니다.** "진짜 테스트해봤어?"라고 물어보세요. 실제로 돌려서 확인하기 전까지는 완성이 아닙니다.
+7. **갈아엎는 걸 무서워하지 마세요.** 1차 버전을 통째로 바꿨지만, 그 과정에서 배운 게 전부 2차 버전에 들어갔습니다. 코드는 git에 남아 있어서 언제든 되돌릴 수 있습니다.
