@@ -16,7 +16,7 @@ Live app: https://sparklabs-doc-tracker.vercel.app
 Two screens.
 
 **① Document collection tracker (company-facing)** — `/deal/<company>`
-Shows the documents a company owes us before investment, and lets **the company upload its own files**. When a file arrives, its filename is matched against the checklist and the item ticks itself. Each company gets its own link — you send them the link and nothing else.
+Shows the documents a company owes us before investment, and lets **the company upload its own files**. When a file arrives, its filename is matched against the checklist and the item ticks itself. Wrongly uploaded files can be removed, and anything the filename matcher can't identify gets **an AI guess at which document it is**. Each company gets its own link — you send them the link and nothing else.
 
 **② Due diligence checklist (internal)** — `/diligence/<company>`
 The 13 checks that read the submitted documents against each other. Each has a checkbox and a memo field, and saves automatically.
@@ -43,6 +43,7 @@ The 13 points from the mentor's "#3. 서류 실사" document, split into two gro
 | Language | TypeScript |
 | Styling | Tailwind CSS v4 |
 | File storage | Vercel Blob (private) |
+| AI | OpenRouter → `google/gemini-2.5-flash-lite` |
 | Hosting | Vercel |
 
 ### Where the code lives
@@ -53,11 +54,13 @@ The 13 points from the mentor's "#3. 서류 실사" document, split into two gro
 | `lib/diligence.ts` | The 13 due-diligence items |
 | `lib/deals.ts` | The list of companies. Week 2 replaces this with real CRUD |
 | `lib/deal-status.ts` | Works out which documents have arrived (shared by both screens) |
-| `lib/storage.ts` | Lists uploaded files |
+| `lib/storage.ts` | Lists and deletes uploaded files |
 | `lib/diligence-store.ts` | Saves checkbox and memo state |
+| `lib/classify.ts` | The AI filename guesser (calls OpenRouter) |
 | `app/deal/[dealId]/` | The company-facing upload screen |
 | `app/diligence/[dealId]/` | The internal DD screen |
 | `app/api/upload/` | Issues upload tokens |
+| `scripts/bench-models.mjs` | AI model comparison harness (see §5) |
 
 ---
 
@@ -115,6 +118,15 @@ which documents we apparently have without the user having uploaded a file
 
 → If the screen looks wrong, say so immediately. That one was a real bug (② below).
 
+Choosing a model:
+
+```
+we have an openrouter api that was given to me to find the most cost efficient
+and best fitting api for our tasks. so find the best one please.
+```
+
+→ Not "pick the best one" but **"pick the best one *by these criteria*"** — naming cost and fit is what turned it into a measurement instead of an opinion.
+
 When lost:
 
 ```
@@ -171,7 +183,15 @@ Pasting an environment variable brought an invisible character (a BOM) along wit
 
 **Fix:** trim whitespace when reading the value.
 
-### ⑥ PowerShell wouldn't run npx
+### ⑥ Spaces in an environment variable name
+
+I put the OpenRouter key in `.env.local` as `OPENROUTER API KEY`. **Environment variable names cannot contain spaces.** It has to be `OPENROUTER_API_KEY`.
+
+The error just says the key is missing, so you stare at a file that visibly contains the key and can't see why.
+
+**Lesson:** environment variable names are **capitals and underscores only**.
+
+### ⑦ PowerShell wouldn't run npx
 
 ```
 npx : File ...\npx.ps1 cannot be loaded because running scripts is disabled
@@ -183,13 +203,16 @@ npx : File ...\npx.ps1 cannot be loaded because running scripts is disabled
 Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
 ```
 
-### ⑦ A TypeScript error caught before deploying
+### ⑧ `!` is not a PowerShell command
 
-Running `npm run build` locally surfaced a type error before Vercel could fail on it.
+In the Claude Code input box, prefixing a line with `!` means "skip the AI, run this in the terminal." Typing that same line **into PowerShell itself** is an error — in PowerShell, `!` means "not".
 
-**Lesson: always run `npm run build` locally before deploying.**
+| Where you're typing | What to type |
+|---|---|
+| PowerShell (`PS C:\...>`) | `notepad .env.local` |
+| Claude Code input box | `! notepad .env.local` |
 
-### ⑧ A test showed Korean as `???` — and the app was fine
+### ⑨ A test showed Korean as `???` — and the app was fine
 
 Saving a Korean memo and reading it back returned `???`. It looked like an app bug. It was PowerShell mangling the request on the way out; sending explicit UTF-8 bytes proved the app stored and returned Korean correctly all along.
 
@@ -197,38 +220,81 @@ Saving a Korean memo and reading it back returned `???`. It looked like an app b
 
 ---
 
-## 5. Design decisions worth keeping
+## 5. How the AI model was chosen
+
+SparkLabs supplied an OpenRouter API key. **OpenRouter is a middleman** — one key reaches 400+ models from Google, OpenAI, Anthropic and others. No separate signup or billing per provider.
+
+The task was "find the most cost-efficient model that fits." Rather than pick on instinct, I **built a test and measured** (`scripts/bench-models.mjs`).
+
+The test cases are **six filenames the keyword matcher genuinely fails on** — e.g. `제스트_등기_최신본_v3.pdf` (corporate registry), `주주_명단_최종.xlsx` (shareholder registry). The last one is `IMG_4821.jpg`, where **the correct answer is "I don't know."** A model that confidently labels that one is actively dangerous here.
+
+Results (2026-08-12, costed from real token usage):
+
+| Model | Score | Time | Cost/run | Runs per $1 |
+|---|---|---|---|---|
+| **google/gemini-2.5-flash-lite** | 6/6 | 2.9s | **$0.000233** | **4,301** |
+| google/gemini-3.1-flash-lite | 6/6 | 2.1s | $0.000683 | 1,464 |
+| openai/gpt-5-mini | 6/6 | 9.9s | $0.002321 | 431 |
+| anthropic/claude-haiku-4.5 | 6/6 | 6.7s | $0.003187 | 314 |
+
+**All four scored 6/6.** At this difficulty the models don't separate on quality — so **when quality ties, price decides**. gemini-2.5-flash-lite is **13× cheaper** than claude-haiku-4.5 for identical answers.
+
+Honest limitations:
+
+- Six cases is a small eval and doesn't strongly separate the models.
+- gemini-2.5-flash-lite returned confidence `1.0` on every correct answer — its confidence scale is coarse. It did give `0.1` to the unanswerable one, which is the distinction that actually matters.
+- If finer calibration is ever needed, gemini-3.1-flash-lite was better at it — 3× the price, still under a tenth of a cent per run.
+
+**Switching models is one environment variable, no code change:** `OPENROUTER_MODEL=...`. Re-run the benchmark before changing it.
+
+> Note: the brief says "Claude API integration." OpenRouter includes Claude, so `OPENROUTER_MODEL=anthropic/claude-haiku-4.5` makes this a Claude integration as-is. It's the same answer at 13× the cost, which is why Gemini is the default.
+
+---
+
+## 6. Design decisions worth keeping
 
 **The company-facing and internal screens are separated.** The DD checklist lives at `/diligence/<company>`, not one segment below the link you hand the company. A page adjacent to a link you gave out is a page you half gave out. It's also marked noindex.
 
 **That said, this is tidiness, not access control.** Anyone with the URL can still open it. There's no login yet.
 
-**Companies can only write to their own folder.** The upload token is only issued if the path belongs to a registered company. DD memos are stored under a completely different path (`diligence/`) that the upload endpoint will never issue a token for.
+**Companies can only write to, and delete from, their own folder.** On delete, the storage path is rebuilt server-side from the deal id and any filename containing `/` is refused. Without that, a filename like `../../diligence/zest.json` would let someone **delete the due-diligence notes** through the upload page.
 
 **"Has this document arrived?" is answered in exactly one place.** `lib/deal-status.ts` is shared by both screens, so they cannot disagree.
 
-**Each DD check shows the documents it depends on.** Under "share count match" you see 등기부등본 and 주주명부 as tags, green when uploaded. You can see at a glance which checks you're not yet in a position to do.
+**The AI suggests; it never ticks.** Even at 90% confidence from a filename, that isn't grounds for marking a legal document as received. A person decides.
 
-**Every 💡 Tip from the mentor's document is preserved.** The professor-consulting-fee issue, no overdraft accounts, borrowings can't be repaid from investment funds — the things that are easy to forget and expensive to forget.
+**The AI cannot invent a document.** A JSON schema forces the *shape* of the answer but guarantees nothing about its truthfulness, so every returned document id is checked against the real checklist and dropped if it isn't there. Anything under 60% confidence is hidden too.
+
+**The AI only sees what keywords missed.** Keyword matching runs first and always wins; the AI handles the leftovers.
+
+**Each DD check shows the documents it depends on**, green when uploaded — so you can see at a glance which checks you're not yet in a position to do.
+
+**Every 💡 Tip from the mentor's document is preserved.** The professor-consulting-fee issue, no overdraft accounts, borrowings can't be repaid from investment funds.
 
 **The blob store is private.** Real company documents go here; knowing the URL isn't enough to open them.
 
 ---
 
-## 6. Security notes
+## 7. Security notes
 
 - `service-account.json` and `.env.local` are in `.gitignore`. **Never commit them.**
+- **Never paste an API key into a chat window.** Put it in the file yourself, or into the Vercel dashboard.
 - The Vercel Blob store was created with `--access private`.
 - Drive access requests only the `drive.readonly` scope, so the app cannot delete or modify files by mistake.
+- The delete endpoint blocks path traversal (`../`).
 - Real company documents are sensitive; only anonymized samples are used.
-- The Drive folder ID is deliberately not written in this document.
+- Neither the Drive folder ID nor any API key appears in this document.
 - The service account key was printed to the screen once during setup, so **it should be reissued.**
 
 ---
 
-## 7. What has actually been tested
+## 8. What has actually been tested
 
 - Dragging a file into the browser → upload → the checklist ticking, end to end
+- Deleting a file → the checklist un-ticking
+- Sending `../diligence/zest.json` to the delete endpoint → **400, refused**
+- AI guess: `제스트_등기_최신본_v3.pdf` → 등기부등본, 90% (local)
+- AI guess: `주주_명단_최종.xlsx` → 주주명부, 95% (production)
 - Saving a DD check and memo, reloading, and finding it still there
 - Editing only the memo and confirming the checkbox doesn't come undone
 - Requests for a non-existent check item or company being refused
@@ -236,25 +302,32 @@ Saving a Korean memo and reading it back returned `???`. It looked like an app b
 
 ---
 
-## 8. What's next
+## 9. What's next
 
-- [ ] Week 1: one CRUD exercise (scope to confirm with mentor)
-- [ ] Week 1: one Claude API integration (needs an API key)
+**All three Week 1 tasks complete:**
+
+- [x] Document tracker mini-project
+- [x] One CRUD — upload (C) / list (R) / edit DD memos (U) / delete files (D)
+- [x] One API integration — via OpenRouter, guessing documents from filenames
+
+**Remaining:**
+
 - [ ] Week 2: deal CRUD — add companies from the screen, not from code
 - [ ] Week 2: obtain the internal 예비실사 체크리스트 standard form and fold it in
-- [ ] Week 3: AI cross-check — read inside documents and flag mismatched numbers
+- [ ] Week 3: AI cross-check — read **inside** documents, not just filenames, and flag mismatched numbers
 - [ ] Week 3: automatic contract draft generation
 - [ ] Login, to protect the internal screen
 - [ ] Reissue the service account key
 
 ---
 
-## 9. For the next intern
+## 10. For the next intern
 
 1. **Paste error messages exactly as they appear.** Don't summarise them. The answer is buried in the ugly red text.
 2. **Pass on mentor feedback verbatim too.** Summarising loses the part you didn't realise mattered.
 3. **Look at the real data first.** Building from the documentation alone produces bugs like ① above.
 4. **But not every pattern in the data means something.** I saw gaps in a file numbering scheme, invented an explanation, and wrote it into a work log as a finding. He'd just removed a few sample files. Ask instead of guessing.
 5. **Say something when the screen looks wrong.** "Why is that already ticked?" caught a real bug.
-6. **The AI is confidently wrong sometimes.** Ask "did you actually test that?" Nothing is finished until it has genuinely been run.
-7. **Don't be afraid to throw work away.** The first version was replaced wholesale, but everything learned building it went into the second one — and the old code is still in git if it's ever wanted.
+6. **When you have to choose, measure.** Instead of picking an AI model on instinct, we built a test and compared. The most expensive and the cheapest gave identical answers — a 13× price difference. The measurement took ten minutes.
+7. **The AI is confidently wrong sometimes.** Ask "did you actually test that?" Nothing is finished until it has genuinely been run. That applies to the AI feature we built, too — which is exactly why its guesses are shown to a person for confirmation rather than acted on.
+8. **Don't be afraid to throw work away.** The first version was replaced wholesale, but everything learned building it went into the second one — and the old code is still in git if it's ever wanted.
