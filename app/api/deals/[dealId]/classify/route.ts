@@ -8,7 +8,7 @@
 
 import { getDeal } from "@/lib/deals";
 import { collectDealStatus, describe } from "@/lib/deal-status";
-import { classifyFilenames, isClaudeConfigured, MIN_CONFIDENCE } from "@/lib/classify";
+import { classifyFilenames, isAiConfigured, MIN_CONFIDENCE } from "@/lib/classify";
 import { documentsFor } from "@/lib/documents";
 
 export async function POST(
@@ -22,9 +22,9 @@ export async function POST(
     return Response.json({ error: `Unknown deal: ${dealId}` }, { status: 404 });
   }
 
-  if (!isClaudeConfigured()) {
+  if (!isAiConfigured()) {
     return Response.json(
-      { error: "ANTHROPIC_API_KEY가 설정되지 않았습니다." },
+      { error: "OPENROUTER_API_KEY가 설정되지 않았습니다." },
       { status: 503 },
     );
   }

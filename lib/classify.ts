@@ -1,16 +1,22 @@
 /**
- * Asking Claude what an unrecognised filename actually is.
+ * Asking a model what an unrecognised filename actually is.
  *
  * The keyword matcher in lib/documents.ts only fires on names it has seen
- * before, so "회사서류_스캔_003.pdf" or "ZEST_cap_table_FINAL(2).xlsx" land in
- * the unclassified pile even when the document itself is obvious to a person.
- * This is the fallback for that pile - it never overrides a keyword match.
+ * before, so "제스트_등기_최신본_v3.pdf" lands in the unclassified pile even
+ * though the document is obvious to a person. This is the fallback for that
+ * pile - it never overrides a keyword match.
  *
- * The model is given the deal's own checklist and must answer with one of its
- * ids or null, enforced by a JSON schema rather than trusted from prose.
+ * Goes through OpenRouter, which fronts many providers behind one
+ * OpenAI-shaped endpoint, so switching models is a string change rather than
+ * a rewrite. No SDK: it is one HTTP call and fetch is built in.
+ *
+ * Model choice is measured, not assumed - scripts/bench-models.mjs runs the
+ * candidates against filenames the keyword matcher genuinely misses. As of
+ * 2026-08-11 four models all scored 6/6, so the tie broke on cost: this one
+ * is ~13x cheaper than Claude Haiku 4.5 for the same answers, at roughly
+ * $0.0002 per run. Re-run the benchmark before changing it.
  */
 
-import Anthropic from "@anthropic-ai/sdk";
 import { documentsFor, type Market } from "./documents";
 
 export type Guess = {
@@ -28,8 +34,22 @@ export const MIN_CONFIDENCE = 0.6;
 /** Long filenames are cheap, but a thousand of them is not. */
 const MAX_FILES = 40;
 
-export function isClaudeConfigured(): boolean {
-  return Boolean(process.env.ANTHROPIC_API_KEY?.trim());
+const ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
+
+const DEFAULT_MODEL = "google/gemini-2.5-flash-lite";
+
+function readKey(): string {
+  // .trim() because pasted keys arrive with stray whitespace or a BOM more
+  // often than you'd think - that exact problem cost an afternoon already.
+  return process.env.OPENROUTER_API_KEY?.trim() ?? "";
+}
+
+function readModel(): string {
+  return process.env.OPENROUTER_MODEL?.trim() || DEFAULT_MODEL;
+}
+
+export function isAiConfigured(): boolean {
+  return readKey().length > 0;
 }
 
 const SYSTEM = `You identify Korean and English startup investment documents from their filenames alone.
@@ -72,41 +92,62 @@ export async function classifyFilenames(
   const wanted = filenames.slice(0, MAX_FILES);
   if (wanted.length === 0) return [];
 
+  const key = readKey();
+  if (!key) throw new Error("OPENROUTER_API_KEY가 설정되지 않았습니다.");
+
   const documents = documentsFor(market);
   const checklist = documents
     .map((doc) => `- ${doc.id}: ${doc.nameKo} (${doc.nameEn})`)
     .join("\n");
 
-  const client = new Anthropic();
-
-  const response = await client.messages.create({
-    model: "claude-opus-5",
-    max_tokens: 4096,
-    system: SYSTEM,
-    output_config: { format: { type: "json_schema", schema: SCHEMA } },
-    messages: [
-      {
-        role: "user",
-        content: `체크리스트:\n${checklist}\n\n분류할 파일명:\n${wanted
-          .map((name) => `- ${name}`)
-          .join("\n")}`,
+  const response = await fetch(ENDPOINT, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${key}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: readModel(),
+      max_tokens: 2000,
+      messages: [
+        { role: "system", content: SYSTEM },
+        {
+          role: "user",
+          content: `체크리스트:\n${checklist}\n\n분류할 파일명:\n${wanted
+            .map((name) => `- ${name}`)
+            .join("\n")}`,
+        },
+      ],
+      response_format: {
+        type: "json_schema",
+        json_schema: { name: "guesses", strict: true, schema: SCHEMA },
       },
-    ],
+    }),
   });
 
-  const text = response.content
-    .filter((block) => block.type === "text")
-    .map((block) => block.text)
-    .join("");
+  const body = await response.json();
 
-  const parsed: unknown = JSON.parse(text);
-  return sanitize(parsed, wanted, documents.map((doc) => doc.id));
+  if (!response.ok) {
+    throw new Error(body?.error?.message ?? `OpenRouter 응답 ${response.status}`);
+  }
+
+  const text: string = body?.choices?.[0]?.message?.content ?? "";
+  // Some models wrap JSON in ```json fences regardless of the response format.
+  const cleaned = text.replace(/^```(?:json)?\s*|\s*```$/g, "").trim();
+  if (!cleaned) return [];
+
+  const parsed: unknown = JSON.parse(cleaned);
+  return sanitize(
+    parsed,
+    wanted,
+    documents.map((doc) => doc.id),
+  );
 }
 
 /**
  * The schema constrains the shape, not the meaning - the model can still name
  * a document id that doesn't exist or a filename nobody asked about. Drop both
- * rather than let a hallucinated id tick something off the checklist.
+ * rather than let an invented id tick something off the checklist.
  */
 function sanitize(raw: unknown, asked: string[], validIds: string[]): Guess[] {
   if (typeof raw !== "object" || raw === null) return [];
