@@ -20,6 +20,9 @@ export default function Home() {
         <span className="mt-1 block text-neutral-500">
           Send a company its own link and they upload their documents themselves.
         </span>
+        <span className="mt-2 block text-neutral-500">
+          &lsquo;서류 실사&rsquo;는 내부 검토용입니다 — 기업에 공유하지 마세요.
+        </span>
       </p>
 
       <ul className="divide-y divide-neutral-200 dark:divide-neutral-800">
@@ -28,22 +31,24 @@ export default function Home() {
           const requiredCount = documents.filter((doc) => !doc.optional).length;
 
           return (
-            <li key={deal.id}>
+            <li key={deal.id} className="flex items-center justify-between gap-4 py-4">
               <Link
                 href={`/deal/${deal.id}`}
-                className="flex items-center justify-between gap-4 py-4 transition-opacity hover:opacity-70"
+                className="min-w-0 transition-opacity hover:opacity-70"
               >
-                <div className="min-w-0">
-                  <p className="font-medium">{deal.companyKo}</p>
-                  <p className="text-sm text-neutral-500">
-                    {deal.companyEn} &middot;{" "}
-                    {deal.market === "overseas" ? "해외 기업" : "국내 기업"} &middot; 필수{" "}
-                    {requiredCount}건
-                  </p>
-                </div>
-                <span aria-hidden className="text-neutral-400">
-                  →
-                </span>
+                <p className="font-medium">{deal.companyKo}</p>
+                <p className="text-sm text-neutral-500">
+                  {deal.companyEn} &middot;{" "}
+                  {deal.market === "overseas" ? "해외 기업" : "국내 기업"} &middot; 필수{" "}
+                  {requiredCount}건
+                </p>
+              </Link>
+
+              <Link
+                href={`/diligence/${deal.id}`}
+                className="shrink-0 rounded-lg border border-neutral-300 px-3 py-1.5 text-sm transition-colors hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-900"
+              >
+                서류 실사
               </Link>
             </li>
           );
