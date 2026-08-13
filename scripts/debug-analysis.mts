@@ -10,7 +10,7 @@
  */
 
 import { readFile } from "node:fs/promises";
-import { unzip } from "../lib/unzip.ts";
+import { unzip } from "../lib/unzip";
 
 const zipPath = process.argv[2];
 const key = process.env.OPENROUTER_API_KEY?.trim();

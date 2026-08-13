@@ -47,3 +47,7 @@ next-env.d.ts
 
 .vercel
 .env*
+
+# Generated contracts - never commit a filled agreement
+test-filled-agreement.docx
+*-filled-agreement.docx

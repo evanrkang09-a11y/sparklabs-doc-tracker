@@ -7,7 +7,7 @@
  */
 
 import { readFile } from "node:fs/promises";
-import { unzip } from "../lib/unzip.ts";
+import { unzip } from "../lib/unzip";
 
 const path = process.argv[2];
 if (!path) {
