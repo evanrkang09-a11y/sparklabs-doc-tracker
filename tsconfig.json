@@ -30,5 +30,6 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules"]
+  "//": "scripts/ are dev helpers run directly by node, which requires the .ts import extension the app's bundler config forbids. They aren't part of the build.",
+  "exclude": ["node_modules", "scripts"]
 }

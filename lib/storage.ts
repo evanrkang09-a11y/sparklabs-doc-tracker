@@ -6,7 +6,7 @@
  * The store is private, so files are not readable from a guessable URL.
  */
 
-import { del, get, list } from "@vercel/blob";
+import { del, get, list, put } from "@vercel/blob";
 
 export type UploadedFile = {
   filename: string;
@@ -77,6 +77,58 @@ export async function readFileAsDataUrl(
   const type = found.blob.contentType || "application/octet-stream";
 
   return `data:${type};base64,${bytes.toString("base64")}`;
+}
+
+/** Reads one uploaded file as raw bytes. Null when missing. */
+export async function readFileBytes(
+  dealId: string,
+  filename: string,
+): Promise<Uint8Array | null> {
+  if (!filename || filename.includes("/") || filename.includes("\\")) return null;
+
+  const found = await get(`${prefixForDeal(dealId)}${filename}`, {
+    access: "private",
+    useCache: false,
+  });
+
+  if (!found?.stream) return null;
+  return new Uint8Array(await new Response(found.stream).arrayBuffer());
+}
+
+/** Stores a file directly, for content we produced rather than received. */
+export async function writeUploadedFile(
+  dealId: string,
+  filename: string,
+  data: Uint8Array,
+  contentType?: string,
+): Promise<void> {
+  const safe = filename.split(/[\\/]/).pop() ?? filename;
+  if (!safe) throw new Error("Invalid filename");
+
+  await put(`${prefixForDeal(dealId)}${safe}`, Buffer.from(data), {
+    access: "private",
+    addRandomSuffix: false,
+    allowOverwrite: true,
+    contentType: contentType || guessContentType(safe),
+  });
+}
+
+function guessContentType(filename: string): string {
+  const extension = filename.toLowerCase().split(".").pop() ?? "";
+
+  return (
+    {
+      pdf: "application/pdf",
+      png: "image/png",
+      jpg: "image/jpeg",
+      jpeg: "image/jpeg",
+      xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      xls: "application/vnd.ms-excel",
+      docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      doc: "application/msword",
+      txt: "text/plain",
+    }[extension] ?? "application/octet-stream"
+  );
 }
 
 /**

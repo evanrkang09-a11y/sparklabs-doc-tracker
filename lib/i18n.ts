@@ -198,9 +198,10 @@ export const T = {
   },
   chooseFiles: { ko: "파일 선택", en: "Choose files" },
   uploading: { ko: "업로드 중…", en: "Uploading…" },
+  unpacking: { ko: "압축 해제 중…", en: "Unpacking…" },
   namingHint: {
-    ko: "파일명에 서류 이름이 들어가야 자동으로 분류됩니다. 예: 사업자등록증_회사명.pdf",
-    en: "Include the document name in the filename so it sorts itself. e.g. business-registration_company.pdf",
+    ko: "파일명에 서류 이름이 들어가야 자동으로 분류됩니다. ZIP 파일도 올릴 수 있으며 자동으로 압축이 풀립니다.",
+    en: "Include the document name in the filename so it sorts itself. ZIP files work too — they're unpacked automatically.",
   },
   uploadFailed: { ko: "업로드 실패", en: "Upload failed" },
   deleteFailed: { ko: "삭제 실패", en: "Delete failed" },

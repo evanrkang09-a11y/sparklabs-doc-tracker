@@ -88,6 +88,21 @@ export default function DealTracker({ deal }: { deal: Deal }) {
           handleUploadUrl: "/api/upload",
           onUploadProgress: ({ percentage }) => setPercent(percentage),
         });
+
+        // A folder of paperwork usually arrives as one archive. Unpack it into
+        // separate documents, otherwise it sits there matching nothing.
+        if (file.name.toLowerCase().endsWith(".zip")) {
+          setBusyWith(`${file.name} — ${t(T.unpacking)}`);
+
+          const response = await fetch(`/api/deals/${deal.id}/unzip`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ filename: file.name }),
+          });
+
+          const parsed = await response.json().catch(() => null);
+          if (!response.ok) throw new Error(parsed?.error ?? `${response.status}`);
+        }
       } catch (problem) {
         setUploadError(`${file.name} — ${t(T.uploadFailed)}: ${describe(problem)}`);
         break;
