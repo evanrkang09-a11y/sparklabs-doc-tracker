@@ -3,7 +3,7 @@
 *English version of `WORKLOG.md`. Same content, for readability.*
 
 Author: Evan Kang
-Date: 2026-08-12
+Date: 2026-08-13 (first written 2026-08-12)
 Live app: https://sparklabs-doc-tracker.vercel.app
 
 > Written for whoever does this internship next. The prompts and the dead ends
@@ -13,13 +13,22 @@ Live app: https://sparklabs-doc-tracker.vercel.app
 
 ## 1. What this is
 
-Two screens.
+Four screens. (Week 1 had only ② and ③; ① and ④ arrived in week 2.)
 
-**① Document collection tracker (company-facing)** — `/deal/<company>`
-Shows the documents a company owes us before investment, and lets **the company upload its own files**. When a file arrives, its filename is matched against the checklist and the item ticks itself. Wrongly uploaded files can be removed, and anything the filename matcher can't identify gets **an AI guess at which document it is**. Each company gets its own link — you send them the link and nothing else.
+**⚠️ The assumption that changed — who uploads:** the first version gave each company a link to upload through. Then the mentor clarified it: **companies email their documents in, and a SparkLabs employee uploads them.** So the **whole site now sits behind a login** and no screen is reachable by an outsider. That one sentence changed the design substantially (see §6).
 
-**② Due diligence checklist (internal)** — `/diligence/<company>`
-The 13 checks that read the submitted documents against each other. Each has a checkbox and a memo field, and saves automatically.
+**① Home / progress** — `/`
+The company list with each company's progress. A sidebar on the left filters by batch and holds the archive; a summary sits across the top. You can **add a company from the screen** (name / Korean or overseas / deal type), create batches, and assign companies to them. Finished companies can be **archived**, or **permanently deleted** if it really has to go.
+
+**② Document collection tracker** — `/deal/<company>`
+The documents a company owes us before investment. When a file arrives, its filename is matched against the checklist and the item ticks itself. Wrongly uploaded files can be removed, and anything the filename matcher can't identify gets **an AI guess at which document it is**. If the company sent everything as **one ZIP, it gets unpacked** into individual documents.
+
+**③ Due diligence checklist** — `/diligence/<company>`
+The 13 checks that read the submitted documents against each other. Each has a checkbox and a memo field, and saves automatically. Each item also has a **comment thread the whole team shares**.
+And **the AI reads the actual documents** — not the filenames, the PDF contents. It judges whether the item's standard is met, explains why, and suggests whether to tick it. Anything it notices outside the standard 13 items goes in a separate section.
+
+**④ Investment agreement** — `/agreement/<company>`
+The mentor's Word contract template, **filled in on the site**. The 85 places that were highlighted yellow in the original are wired to 57 input fields on the right, so typing shows up immediately in the contract preview on the left. When it's complete, **download it as .docx or .pdf**.
 
 ### The checklist
 
@@ -44,6 +53,8 @@ The 13 points from the mentor's "#3. 서류 실사" document, split into two gro
 | Styling | Tailwind CSS v4 |
 | File storage | Vercel Blob (private) |
 | AI | OpenRouter → `google/gemini-2.5-flash-lite` |
+| Login | Auth.js (next-auth v5) + Google sign-in, `@sparklabs.co.kr` only |
+| Contracts | Fills the Word (.docx) file directly — `fflate` |
 | Hosting | Vercel |
 
 ### Where the code lives
@@ -52,15 +63,27 @@ The 13 points from the mentor's "#3. 서류 실사" document, split into two gro
 |---|---|
 | `lib/documents.ts` | Required documents + filename matching. **Change the checklist here and nowhere else.** |
 | `lib/diligence.ts` | The 13 due-diligence items |
-| `lib/deals.ts` | The list of companies. Week 2 replaces this with real CRUD |
-| `lib/deal-status.ts` | Works out which documents have arrived (shared by both screens) |
-| `lib/storage.ts` | Lists and deletes uploaded files |
+| `lib/deals.ts` | Company and batch types + the sample companies you start with |
+| `lib/deals-store.ts` | Add, edit, archive and delete companies (this is where screen-added companies live) |
+| `lib/deal-status.ts` | Works out which documents have arrived (shared by every screen) |
+| `lib/storage.ts` | Lists, reads and deletes uploaded files |
+| `lib/unzip.ts` | Unpacks ZIP archives (including Korean filenames) |
 | `lib/diligence-store.ts` | Saves checkbox and memo state |
-| `lib/classify.ts` | The AI filename guesser (calls OpenRouter) |
-| `app/deal/[dealId]/` | The company-facing upload screen |
-| `app/diligence/[dealId]/` | The internal DD screen |
+| `lib/comments-store.ts` | Per-item comments (one comment = one file) |
+| `lib/classify.ts` | The AI filename guesser |
+| `lib/analysis.ts` | **The AI reads document contents and judges each DD item** |
+| `lib/openrouter.ts` | The single door to the AI — swap models here |
+| `auth.ts` / `proxy.ts` | Login, and turning away anyone who isn't signed in |
+| `lib/agreement-fields.ts` | The map from 57 input fields to 85 places in the template |
+| `lib/agreement-docx.ts` | Puts the values into the Word file |
+| `lib/agreement-store.ts` | Saves the draft (per company, shared by everyone) |
+| `templates/investment-agreement.docx` | The contract template with its fillable slots marked |
+| `app/deal/[dealId]/` | The upload screen |
+| `app/diligence/[dealId]/` | The DD screen |
+| `app/agreement/[dealId]/` | The contract screen |
 | `app/api/upload/` | Issues upload tokens |
 | `scripts/bench-models.mjs` | AI model comparison harness (see §5) |
+| `scripts/prepare-template.py` | Turns the yellow highlights in the contract into fillable slots (see §10) |
 
 ---
 
@@ -149,6 +172,36 @@ When lost:
 im kinda lost, what did you just do. explain it to me like im 5
 ```
 
+**The three prompts that worked best in week 2 —**
+
+When I didn't know how something should work, I asked **"is this possible" rather than "build it":**
+
+```
+my mentor wants a login page that only accepts sparkslabs employees. how would
+we do that and is that possible without their explcit passwords to their
+sparkslabs emails?
+```
+
+→ I got **the options before the code.** That's where I learned we never have to handle passwords.
+
+When an assumption changed, I passed on **exactly that one sentence:**
+
+```
+companies wont be the ones uplaoding the files, it will be sparklabs employees
+that upload them once the companies send it to them externally
+```
+
+→ That single line moved the entire site behind a login. **"Who uses this" has to be settled before the features.**
+
+When something was broken:
+
+```
+theres an issue with the ai analysis, it says ai analysis failed on every
+single check. we need this fixed right now
+```
+
+→ **"Every" and "always" are real information.** One failing check is a problem with that document; all of them failing means there's a single shared cause.
+
 ---
 
 ## 4. What went wrong, and how it got fixed
@@ -234,6 +287,69 @@ Saving a Korean memo and reading it back returned `???`. It looked like an app b
 
 **Lesson: when a test fails, suspect the test first.** Check before changing the thing being tested.
 
+### ⑩ SparkLabs emails couldn't log in — another invisible character
+
+Login went up, and the mentor's attempt with their company account returned **`The OAuth client was not found`**.
+
+I compared the client ID registered with Google against the value in Vercel **character by character. They were identical.** So I looked at the URL the browser actually sends to Google, and there was **one invisible character (a BOM)** sitting in front of `client_id=`. As far as Google was concerned, that client didn't exist.
+
+The cause was mine: PowerShell prepended a BOM when I piped the value into Vercel.
+
+**Two fixes —**
+
+1. Writing values: `$OutputEncoding = New-Object System.Text.UTF8Encoding($false)`
+2. Reading values: the code that reads environment variables (`lib/env.ts`) strips a BOM. Better for the code to prevent it than for a person to remember.
+
+**That was the third time a BOM cost time on this project** (⑤ the Drive credential, this login, and once when I put a BOM *inside* the code I was writing to strip BOMs). **When something looks identical but doesn't work, suspect a character you can't see.**
+
+### ⑪ A security hole I wrote myself — anyone could delete anyone's comment
+
+Comments on DD items could be posted and deleted. To decide *who* was deleting, I trusted **a value the browser sent**.
+
+Which means changing that value in the browser lets you **delete a colleague's comment.** I thought I'd restricted deletion to your own comments; in reality nothing was being enforced at all.
+
+**Fix:** the server **re-reads the stored comment** and compares its recorded author against the signed-in user.
+
+**Lesson: everything the browser sends can be a lie.** "Who is this" can only be answered from the login the server holds.
+
+### ⑫ The ZIP upload "didn't work"
+
+Companies often send everything as a single ZIP. Uploading one appeared to do nothing.
+
+It turned out **the upload worked perfectly** (7.2 MB, verified in the store). Nothing existed to unpack it. "Didn't work" meant **not built**, not failed.
+
+A problem that surfaced while building it: **Korean filenames came out as garbage.** ZIPs made on Korean Windows store filenames as CP949, not UTF-8. The ZIP format has a flag saying "these names are UTF-8", so when that flag is missing the names get decoded as CP949.
+
+### ⑬ Every AI analysis failed — files with no extension
+
+All 13 DD items showed "AI analysis failed". Reproducing it locally with the real documents produced the actual cause:
+
+```
+Unsupported MIME type: application/octet-stream
+```
+
+The file was named `..._등기부등본.pdf의 사본` — "copy of". **It doesn't end in `.pdf`,** so it was stored as "file of unknown type", and Google rejects unknown types.
+
+**Fix: don't trust the extension, look at the first few bytes of the file.** A PDF starts with `%PDF`. Whatever it's called, if the contents are a PDF it's treated as one.
+
+**Fixed alongside it:** the on-screen `provider returned error` carried no information. The real message was buried inside the response at `error.metadata.raw`. It's surfaced now, so the next person sees the cause immediately instead of hunting for twenty minutes.
+
+**Lesson: don't trust the failure message on screen — find the real error.** And when you show it to a user, show the real one.
+
+### ⑭ Square brackets in a folder name — `[dealId]`
+
+Editing several files at once with PowerShell's `Resolve-Path` **silently skipped every folder with brackets in its name.** PowerShell reads `[dealId]` as a pattern meaning "one of the characters d, e, a, l". Next.js uses brackets for folder names, so that's most of the project.
+
+**Fix:** paths that aren't interpreted as patterns (`Join-Path` plus literal paths). Source code changes now go through the editing tool only.
+
+### ⑮ The build failed on a 60-second limit — and the code wasn't the problem
+
+The pre-deploy build failed because pages that **do nothing at all** — `/_not-found`, `/favicon.ico` — took more than 60 seconds.
+
+It's tempting to blame whatever you just wrote, but **the pages that failed had nothing to do with the new code.** The laptop was simply busy with something else. Clearing the cache (`.next`) and rerunning passed.
+
+**Lesson: look at what the failures have in common.** If it's "everything got slow" rather than "the thing I touched", it's the environment, not the code.
+
 ---
 
 ## 5. How the AI model was chosen
@@ -271,7 +387,17 @@ Honest limitations:
 
 **The company-facing and internal screens are separated.** The DD checklist lives at `/diligence/<company>`, not one segment below the link you hand the company. A page adjacent to a link you gave out is a page you half gave out. It's also marked noindex.
 
-**That said, this is tidiness, not access control.** Anyone with the URL can still open it. There's no login yet.
+**(Updated in week 2 — it is access control now.)** The paragraph above was true when there was no login. The **whole site sits behind sign-in** today; knowing the URL gets you a redirect to the login page.
+
+**Login is enforced at the front door, not on each screen.** Checking "are they signed in?" inside every page means the first screen you forget is the screen that leaks. So it's enforced in the one file every request passes through (`proxy.ts`), with the handful of URLs that must stay open listed by name as exceptions. When the default is "blocked", forgetting can't open a hole.
+
+**The AI is never handed the whole document set.** Each DD item gets **only the documents that item actually depends on** (`relatedDocumentIds`), and there's a ceiling (16 MB) on how much any one analysis can send — so a company with a lot of paperwork doesn't quietly produce a large bill.
+
+**The same document isn't read thirteen times.** The articles of incorporation feed five checks and the registry feeds four; a document read once is reused for 60 seconds.
+
+**One comment is one file.** Storing them all in a single file means that when two people comment at the same time, **whoever saves second erases the first person's words.** This is a feature for a team, so it was built that way from the start.
+
+**A contract draft belongs to the company, not to the person typing it.** A draft only I can see is useless to the colleague who has to review it.
 
 **Companies can only write to, and delete from, their own folder.** On delete, the storage path is rebuilt server-side from the deal id and any filename containing `/` is refused. Without that, a filename like `../../diligence/zest.json` would let someone **delete the due-diligence notes** through the upload page.
 
@@ -300,6 +426,10 @@ Honest limitations:
 - The delete endpoint blocks path traversal (`../`).
 - Real company documents are sensitive; only anonymized samples are used.
 - Neither the Drive folder ID nor any API key appears in this document.
+- **The whole site is behind sign-in.** Pages redirect to the login screen (302); APIs are refused (401).
+- **Only accounts Google has verified the email for** get through. Checking the domain alone would let through an account that simply typed an unverified address into its profile.
+- Passwords are **neither received nor stored.** Google does the identity check; we get the result. Keeping staff passwords out of our hands was the point.
+- Filled contracts (`*-filled-agreement.docx`) are in `.gitignore` too. **A test contract must not get committed.**
 
 ### A real key exposure (2026-08-11)
 
@@ -321,6 +451,8 @@ Honest limitations:
 
 **Action: delete, don't rotate.** There's no reason to issue a replacement for a key nothing uses. Google Cloud Console → IAM & Admin → Service Accounts → Keys → delete. **A key that doesn't exist can't leak.** If Drive support is ever switched back on, generate a fresh one then.
 
+**→ Deleted 2026-08-13.** The value still sitting in the log file now opens nothing.
+
 **The lesson — and we avoided it the second time.** When the OpenRouter key arrived a few days later, the handling changed: the key was never typed into the chat at all. It went **straight into Notepad and the Vercel dashboard by hand**, and when the variable *name* needed checking, each line was split at the `=` and **only the left-hand side** printed. Verified result: **zero** occurrences of the OpenRouter key in the log.
 
 > **Rule: name the file the key goes in. Never ask for the value, and never print it.**
@@ -339,9 +471,63 @@ Honest limitations:
 - Requests for a non-existent check item or company being refused
 - Korean text saving and reading back correctly
 
+**Added in week 2:**
+
+- Every URL requested while signed out → pages 302 to login, APIs 401. **All confirmed**
+- Including the new contract screen and endpoints (`/agreement/zest` → 302, both contract APIs → 401)
+- ZIP unpacking, against a ZIP actually made on Korean Windows — **Korean filenames intact**
+- AI document analysis, against real scanned Korean PDFs — reads them and reaches a judgement
+- A file with no extension (`...pdf의 사본`) being recognised as a PDF from its contents
+- Filling the contract: filled from the real template and **opened in Word**, company name / share count / Korean amount-in-words all landed, `&` escaped, the 12% penalty present, **no yellow editing marks left**
+- The 85 template slots against the 57 input fields — **nothing missing, nothing claimed twice**
+- All re-checked on the deployed site after deploying
+
+**Still needs a person in a browser** (the login means I can't click through these myself):
+
+- Adding / archiving / permanently deleting a company
+- Creating a batch and assigning companies to it
+- Writing and deleting comments — especially that **someone else's comment refuses to delete**
+- Filling a contract, saving, then signing in as another account and finding it there
+- Downloading the contract as .docx and .pdf
+
 ---
 
-## 9. What's next
+## 9. How the login works
+
+The mentor's requirement: **only SparkLabs employees get in.** My question was "do we have to handle their passwords?", and the answer is **no.**
+
+**The approach: Google sign-in plus a domain check.** An employee clicks "sign in with Google" and picks the company account they're already signed into. Google tells us "this person is `someone@sparklabs.co.kr`", and **we check that the part after the @ is `sparklabs.co.kr`**. No password ever passes through us.
+
+**Two traps found while building it —**
+
+1. **The `hd` option is not a security control.** Google takes a parameter saying "this domain only", but it only **hints to the account chooser**. The actual enforcement has to happen on our server.
+2. **You have to check whether the email is verified.** Domain alone would let through an account that typed an unverified address into its own profile. So only accounts Google marks as verified are allowed.
+
+**There's an exceptions list (`ALLOWED_EMAILS`).** As an intern I have no company account, so my personal one is on the list. When exceptions exist, the `hd` hint above has to be dropped — with it on, Google won't even offer the personal account.
+
+---
+
+## 10. How the contract gets filled
+
+**The problem:** a Word file that reads as one sentence is stored **broken into fragments** internally. A single slot like `[이억이천사백사만육천칠백육십]` can be six separate pieces. Reassembling those on every request would be slow and would risk **corrupting a legal document.**
+
+**The fix: do the hard part once, in advance.** `scripts/prepare-template.py` was run **exactly once** to find the yellow-highlighted slots, join their fragments, and replace each with a single marker like `{{f1}}`. After that, filling the contract is **string replacement** — simple and safe. The yellow highlighting was stripped at the same time; a finished contract shouldn't arrive covered in editing marks.
+
+**Values the mentor standardised:** liquidated damages **12%**, employment restriction **5 years**. They're pre-filled, and if someone changes one the field gets an **amber border** saying "this departs from the standard". Contracts are normally in **3 copies** (SparkLabs / company / representative), more when there are additional interested parties.
+
+**Three problems that came up —**
+
+1. **The years were frozen.** The template had `2026년` as plain text, not highlighted, so the first pass walked straight past it — which would mean you couldn't write next year's contract on this site. The financial statements section had `202X년`, left blank. → The years are fields now. But **the new markers were appended at the end** (from 78 onwards): inserting them in the middle would shift every later number by one and break all 77 existing mappings at once.
+2. **A single `&` makes Word refuse the file.** A company name containing `&` gets "the file is corrupt", because Word is XML underneath and `&` is special there. → `& < > " '` are escaped as values go in.
+3. **The 회사 party block in the template holds SparkLabs fund details.** The company being invested in appears in the signature block. That needs the mentor's confirmation, so it's **left as-is and exposed as fields** for now.
+
+**Empty slots stay visible as `{{f27}}` rather than going blank.** A blank reads as a term deliberately left empty; a visible marker makes it obvious nothing was filled. The screen also reports how many are still outstanding.
+
+**The .pdf comes from the browser's print function.** The `.docx` *is* the original template, so its formatting is exactly right. The PDF prints the preview, so **the layout can differ slightly.** Use the `.docx` for anything that gets stamped and submitted; the PDF is for sharing and review. If a byte-exact PDF is needed, a conversion service can be wired in.
+
+---
+
+## 11. What's next
 
 **All three Week 1 tasks complete:**
 
@@ -349,18 +535,29 @@ Honest limitations:
 - [x] One CRUD — upload (C) / list (R) / edit DD memos (U) / delete files (D)
 - [x] One API integration — via OpenRouter, guessing documents from filenames
 
+**Week 2 complete:**
+
+- [x] Deal CRUD — add / archive / permanently delete companies from the screen
+- [x] Creating batches and assigning companies to them
+- [x] Home screen progress view plus sidebar
+- [x] Per-item comments, shared across the team
+- [x] Login — the whole site, SparkLabs accounts only
+- [x] AI cross-check — reads **inside** the documents and judges each item
+- [x] Unpacking documents that arrive as a ZIP
+- [x] Contract drafting plus .docx / .pdf download
+- [x] Service account key deleted (§7)
+
 **Remaining:**
 
-- [ ] Week 2: deal CRUD — add companies from the screen, not from code
-- [ ] Week 2: obtain the internal 예비실사 체크리스트 standard form and fold it in
-- [ ] Week 3: AI cross-check — read **inside** documents, not just filenames, and flag mismatched numbers
-- [ ] Week 3: automatic contract draft generation
-- [ ] Login, to protect the internal screen
-- [ ] Delete the service account key (see the §7 incident — no replacement needed, nothing uses it)
+- [ ] Click through the "still needs a person in a browser" list in §8
+- [ ] Needs the mentor's confirmation: the 회사 block in the template holds SparkLabs fund details (§10-3)
+- [ ] Obtain the internal 예비실사 체크리스트 standard form and fold it in
+- [ ] Wire in a conversion service if a byte-identical PDF is required (§10)
+- [ ] Push to GitHub so there's a backup off this laptop (right now it only exists here)
 
 ---
 
-## 10. For the next intern
+## 12. For the next intern
 
 1. **Paste error messages exactly as they appear.** Don't summarise them. The answer is buried in the ugly red text.
 2. **Pass on mentor feedback verbatim too.** Summarising loses the part you didn't realise mattered.
@@ -369,4 +566,7 @@ Honest limitations:
 5. **Say something when the screen looks wrong.** "Why is that already ticked?" caught a real bug.
 6. **When you have to choose, measure.** Instead of picking an AI model on instinct, we built a test and compared. The most expensive and the cheapest gave identical answers — a 13× price difference. The measurement took ten minutes.
 7. **The AI is confidently wrong sometimes.** Ask "did you actually test that?" Nothing is finished until it has genuinely been run. That applies to the AI feature we built, too — which is exactly why its guesses are shown to a person for confirmation rather than acted on.
-8. **Don't be afraid to throw work away.** The first version was replaced wholesale, but everything learned building it went into the second one — and the old code is still in git if it's ever wanted.
+8. **"It doesn't work" doesn't mean "it failed".** When the ZIP upload didn't work, the upload was working perfectly — there was simply nothing to unpack it. **Find out how far it got** and you won't fix the wrong thing.
+9. **When something looks identical but doesn't work, suspect a character you can't see.** It happened three times on this project. You only catch it by stopping the eyeball comparison and looking at what the computer actually sends.
+10. **Security isn't what you think you blocked.** I believed comments could only be deleted by their author; in fact I was trusting the browser's claim about who it was. **Anything arriving from a browser can be a lie.**
+11. **Don't be afraid to throw work away.** The first version was replaced wholesale, but everything learned building it went into the second one — and the old code is still in git if it's ever wanted.
