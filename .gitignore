@@ -54,3 +54,6 @@ test-filled-agreement.docx
 
 # Offline render used to eyeball the contract layout
 contract-preview.html
+
+# Scratch file used to pass a commit message to git
+.commit-msg.txt
