@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import type { Batch, Deal } from "@/lib/deals";
+import { matchesBatch, type Batch, type Deal } from "@/lib/deals";
 import { T } from "@/lib/i18n";
 import { describe } from "@/lib/errors";
 import { useLang } from "./lang-provider";
@@ -42,13 +42,7 @@ export default function DealList({
 
   const visible = deals
     .filter((deal) => showArchived || !deal.archived)
-    .filter((deal) =>
-      selectedBatch === null
-        ? true
-        : selectedBatch === "__none__"
-          ? !deal.batchId
-          : deal.batchId === selectedBatch,
-    );
+    .filter((deal) => matchesBatch(deal, selectedBatch));
 
   // Batches in creation order, then anything unassigned last - an unassigned
   // pile at the top would push the real groupings down the page. When the
@@ -123,6 +117,7 @@ export default function DealList({
           deals={deals}
           batches={batches}
           selectedBatch={selectedBatch}
+          showArchived={showArchived}
           onSelectBatch={setSelectedBatch}
         />
 

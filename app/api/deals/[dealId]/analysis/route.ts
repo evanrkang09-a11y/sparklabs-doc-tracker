@@ -16,6 +16,7 @@ import {
   analyzeCheck,
   isAiConfigured,
   suggestExtraChecks,
+  unclearAnalysis,
   type CheckAnalysis,
 } from "@/lib/analysis";
 import { readAnalysis, saveCheckAnalyses, saveExtraChecks } from "@/lib/analysis-store";
@@ -68,9 +69,9 @@ export async function POST(
 
   try {
     const status = await collectDealStatus(deal);
+    const items = allDiligenceItems();
 
     if (mode === "extra") {
-      const items = allDiligenceItems();
       const extra = await suggestExtraChecks(
         deal,
         status.documents,
@@ -80,7 +81,6 @@ export async function POST(
       return Response.json(await saveExtraChecks(dealId, extra));
     }
 
-    const items = allDiligenceItems();
     const wanted = Array.isArray(checkIds)
       ? items.filter((item) => checkIds.includes(item.id))
       : items;
@@ -95,20 +95,10 @@ export async function POST(
           return await analyzeCheck(deal, item, status.documents);
         } catch (problem) {
           // One check failing shouldn't lose the other three in this batch.
-          return {
-            checkId: item.id,
-            verdict: "unclear",
-            confidence: 0,
+          return unclearAnalysis(item.id, {
             summaryKo: `분석 실패: ${describe(problem)}`,
             summaryEn: `Analysis failed: ${describe(problem)}`,
-            keyFacts: [],
-            issuesKo: [],
-            issuesEn: [],
-            instructionsKo: [],
-            instructionsEn: [],
-            documentsRead: [],
-            analyzedAt: new Date().toISOString(),
-          };
+          });
         }
       }),
     );

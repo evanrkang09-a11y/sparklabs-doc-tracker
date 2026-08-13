@@ -47,6 +47,25 @@ export type Deal = {
   readsSampleDriveFolder?: boolean;
 };
 
+/**
+ * The sidebar's selection for "companies in no batch at all".
+ *
+ * A sentinel rather than null, because null already means "every batch". Both
+ * the sidebar and the list filter on this, so it lives here rather than being
+ * spelled out in each - written twice, they drifted immediately.
+ */
+export const UNASSIGNED_BATCH = "__none__";
+
+/** Whether a company belongs in the currently selected batch. */
+export function matchesBatch(
+  deal: { batchId: string | null },
+  selected: string | null,
+): boolean {
+  if (selected === null) return true;
+  if (selected === UNASSIGNED_BATCH) return !deal.batchId;
+  return deal.batchId === selected;
+}
+
 export type Batch = {
   id: string;
   name: string;

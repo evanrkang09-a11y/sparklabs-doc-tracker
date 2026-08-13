@@ -18,7 +18,11 @@
  */
 
 import { documentsFor, type Market } from "./documents";
-import { readEnv, readEnvOr } from "./env";
+import { callOpenRouter, isAiConfigured } from "./openrouter";
+
+// Re-exported so the route that uses it doesn't need to know where the client
+// lives.
+export { isAiConfigured };
 
 export type Guess = {
   filename: string;
@@ -34,22 +38,6 @@ export const MIN_CONFIDENCE = 0.6;
 
 /** Long filenames are cheap, but a thousand of them is not. */
 const MAX_FILES = 40;
-
-const ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
-
-const DEFAULT_MODEL = "google/gemini-2.5-flash-lite";
-
-function readKey(): string {
-  return readEnv("OPENROUTER_API_KEY");
-}
-
-function readModel(): string {
-  return readEnvOr("OPENROUTER_MODEL", DEFAULT_MODEL);
-}
-
-export function isAiConfigured(): boolean {
-  return readKey().length > 0;
-}
 
 const SYSTEM = `You identify Korean and English startup investment documents from their filenames alone.
 
@@ -91,51 +79,21 @@ export async function classifyFilenames(
   const wanted = filenames.slice(0, MAX_FILES);
   if (wanted.length === 0) return [];
 
-  const key = readKey();
-  if (!key) throw new Error("OPENROUTER_API_KEY가 설정되지 않았습니다.");
-
   const documents = documentsFor(market);
   const checklist = documents
     .map((doc) => `- ${doc.id}: ${doc.nameKo} (${doc.nameEn})`)
     .join("\n");
 
-  const response = await fetch(ENDPOINT, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${key}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: readModel(),
-      max_tokens: 2000,
-      messages: [
-        { role: "system", content: SYSTEM },
-        {
-          role: "user",
-          content: `체크리스트:\n${checklist}\n\n분류할 파일명:\n${wanted
-            .map((name) => `- ${name}`)
-            .join("\n")}`,
-        },
-      ],
-      response_format: {
-        type: "json_schema",
-        json_schema: { name: "guesses", strict: true, schema: SCHEMA },
-      },
-    }),
+  const parsed = await callOpenRouter({
+    system: SYSTEM,
+    content: `체크리스트:\n${checklist}\n\n분류할 파일명:\n${wanted
+      .map((name) => `- ${name}`)
+      .join("\n")}`,
+    schema: SCHEMA,
+    schemaName: "guesses",
+    maxTokens: 2000,
   });
 
-  const body = await response.json();
-
-  if (!response.ok) {
-    throw new Error(body?.error?.message ?? `OpenRouter 응답 ${response.status}`);
-  }
-
-  const text: string = body?.choices?.[0]?.message?.content ?? "";
-  // Some models wrap JSON in ```json fences regardless of the response format.
-  const cleaned = text.replace(/^```(?:json)?\s*|\s*```$/g, "").trim();
-  if (!cleaned) return [];
-
-  const parsed: unknown = JSON.parse(cleaned);
   return sanitize(
     parsed,
     wanted,

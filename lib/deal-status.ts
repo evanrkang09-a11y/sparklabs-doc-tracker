@@ -11,7 +11,16 @@ import { listUploadedFiles } from "./storage";
 import { isDriveConfigured, listDriveFilenames } from "./drive";
 import { describe } from "./errors";
 
-export type FoundFile = { name: string; source: "upload" | "drive" };
+export type FoundFile = {
+  name: string;
+  source: "upload" | "drive";
+  /**
+   * When the file arrived. Carried through so the diligence screen can tell
+   * that an analysis predates the document it claims to have read - a stale
+   * "looks satisfied" on a re-uploaded document is the dangerous case.
+   */
+  uploadedAt?: string;
+};
 
 export type TrackedDocument = RequiredDocument & {
   files: FoundFile[];
@@ -44,7 +53,11 @@ export async function collectDealStatus(deal: Deal): Promise<DealStatus> {
   // What the company has uploaded through the site.
   if (uploaded.status === "fulfilled") {
     for (const file of uploaded.value) {
-      found.push({ name: file.filename, source: "upload" });
+      found.push({
+        name: file.filename,
+        source: "upload",
+        uploadedAt: file.uploadedAt,
+      });
     }
   } else {
     warnings.push(`업로드 파일을 불러오지 못했습니다 — ${describe(uploaded.reason)}`);

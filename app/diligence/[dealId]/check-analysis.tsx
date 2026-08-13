@@ -14,8 +14,11 @@ import { useLang } from "@/app/lang-provider";
  */
 export default function CheckAnalysisPanel({
   analysis,
+  newestUploadAt,
 }: {
   analysis: CheckAnalysis | undefined;
+  /** When the most recent document arrived, for spotting a stale reading. */
+  newestUploadAt: string | null;
 }) {
   const { lang, t, pick } = useLang();
 
@@ -24,6 +27,10 @@ export default function CheckAnalysisPanel({
       <p className="mt-3 ml-8 text-xs text-neutral-400">{t(T.notAnalysed)}</p>
     );
   }
+
+  // Documents have changed since this ran, so it describes files that may no
+  // longer be there. A stale "looks satisfied" is the dangerous one.
+  const stale = Boolean(newestUploadAt && newestUploadAt > analysis.analyzedAt);
 
   const tone = {
     met: "border-emerald-300 bg-emerald-50/60 dark:border-emerald-900 dark:bg-emerald-950/20",
@@ -56,6 +63,12 @@ export default function CheckAnalysisPanel({
           {t(T.analysedAt)} {new Date(analysis.analyzedAt).toLocaleString()}
         </span>
       </div>
+
+      {stale && (
+        <p className="mt-1.5 rounded bg-amber-100 px-2 py-1 text-[11px] text-amber-900 dark:bg-amber-950/50 dark:text-amber-200">
+          {t(T.analysisStale)}
+        </p>
+      )}
 
       <p className="mt-1.5 text-sm text-neutral-700 dark:text-neutral-300">
         {pick(analysis.summaryKo, analysis.summaryEn)}

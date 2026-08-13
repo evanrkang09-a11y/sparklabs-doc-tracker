@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import type { Batch } from "@/lib/deals";
+import { matchesBatch, UNASSIGNED_BATCH, type Batch } from "@/lib/deals";
 import type { DealSummary } from "./deal-list";
 import { T } from "@/lib/i18n";
 import { useLang } from "./lang-provider";
@@ -20,16 +20,19 @@ export default function CompanySidebar({
   deals,
   batches,
   selectedBatch,
+  showArchived,
   onSelectBatch,
 }: {
   deals: DealSummary[];
   batches: Batch[];
   selectedBatch: string | null;
+  /** Kept in step with the list - otherwise the two panes show different sets. */
+  showArchived: boolean;
   onSelectBatch: (batchId: string | null) => void;
 }) {
   const { t, both } = useLang();
 
-  const active = deals.filter((deal) => !deal.archived);
+  const active = deals.filter((deal) => showArchived || !deal.archived);
   const countIn = (batchId: string | null) =>
     active.filter((deal) => deal.batchId === batchId).length;
 
@@ -65,8 +68,8 @@ export default function CompanySidebar({
             <BatchButton
               label={t(T.unassigned)}
               count={unassigned}
-              selected={selectedBatch === "__none__"}
-              onClick={() => onSelectBatch("__none__")}
+              selected={selectedBatch === UNASSIGNED_BATCH}
+              onClick={() => onSelectBatch(UNASSIGNED_BATCH)}
             />
           </li>
         )}
@@ -78,13 +81,7 @@ export default function CompanySidebar({
 
       <ul className="hidden space-y-0.5 lg:block">
         {active
-          .filter((deal) =>
-            selectedBatch === null
-              ? true
-              : selectedBatch === "__none__"
-                ? !deal.batchId
-                : deal.batchId === selectedBatch,
-          )
+          .filter((deal) => matchesBatch(deal, selectedBatch))
           .map((deal) => {
             const [name] = both(deal.companyKo, deal.companyEn);
             const settled = deal.missingCount === 0 && deal.uncheckedCount === 0;

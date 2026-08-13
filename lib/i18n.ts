@@ -152,6 +152,10 @@ export const T = {
   documentsRead: { ko: "읽은 서류", en: "Documents read" },
   analysedAt: { ko: "분석 시각", en: "Analysed" },
   analysisFailed: { ko: "분석 실패", en: "Analysis failed" },
+  analysisStale: {
+    ko: "분석 이후 서류가 변경되었습니다. 다시 분석하세요.",
+    en: "Documents have changed since this ran — re-analyse.",
+  },
   aiSuggested: { ko: "AI 추가 검토 제안", en: "Additional checks suggested by AI" },
   aiSuggestedIntro: {
     ko: "표준 체크리스트에는 없지만, 이 기업의 서류를 보고 확인이 필요하다고 판단한 항목입니다.",

@@ -54,6 +54,7 @@ export default function DiligenceChecklist({
   initialComments,
   initialAnalysis,
   uploadedCount,
+  newestUploadAt,
   viewerEmail,
   missingCount,
   totalRequired,
@@ -64,6 +65,7 @@ export default function DiligenceChecklist({
   initialComments: Record<string, Comment[]>;
   initialAnalysis: AnalysisRecord;
   uploadedCount: number;
+  newestUploadAt: string | null;
   viewerEmail: string | null;
   missingCount: number;
   totalRequired: number;
@@ -365,7 +367,10 @@ export default function DiligenceChecklist({
                     </div>
                   )}
 
-                  <CheckAnalysisPanel analysis={analysis.checks[item.id]} />
+                  <CheckAnalysisPanel
+                    analysis={analysis.checks[item.id]}
+                    newestUploadAt={newestUploadAt}
+                  />
 
                   <textarea
                     value={state.note}

@@ -19,21 +19,38 @@
 
 import type { Deal } from "./deals";
 import type { DiligenceItem } from "./diligence";
-import { readEnv, readEnvOr } from "./env";
-import { readFileAsDataUrl } from "./storage";
+import { callOpenRouter, isAiConfigured } from "./openrouter";
+import { readFileAsDataUrl, type ReadFile } from "./storage";
 import type { TrackedDocument } from "./deal-status";
 
-const ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
-
-/**
- * Chosen by measurement, twice: cheapest of four models that all scored 6/6 on
- * filename classification, and the only cheap one that correctly read a scanned
- * Korean bank document. Override with OPENROUTER_MODEL.
- */
-const DEFAULT_MODEL = "google/gemini-2.5-flash-lite";
+export { isAiConfigured };
 
 /** Below this there isn't enough on file for a company-specific opinion. */
 export const MIN_DOCS_FOR_SUGGESTIONS = 4;
+
+/**
+ * Total bytes of documents we'll put in one request.
+ *
+ * The per-file cap in lib/storage.ts doesn't bound a request: twelve files
+ * under it still add up to something no provider will accept, and base64 adds
+ * a third on top. Better to send the first few documents and say so than to
+ * spend the download time and then fail.
+ */
+const MAX_REQUEST_BYTES = 16 * 1024 * 1024;
+
+/**
+ * What the model will actually read. Anything else is skipped rather than sent
+ * with a hopeful type - sending an unsupported one is what made every analysis
+ * fail with "Unsupported MIME type".
+ */
+const READABLE_TYPES = new Set([
+  "application/pdf",
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+  "image/gif",
+  "text/plain",
+]);
 
 export type Verdict = "met" | "issues" | "unclear";
 
@@ -69,12 +86,115 @@ export type ExtraCheck = {
   documentsRead: string[];
 };
 
-function model(): string {
-  return readEnvOr("OPENROUTER_MODEL", DEFAULT_MODEL);
+/**
+ * Builds a CheckAnalysis without writing all twelve fields out.
+ *
+ * Most of them are empty in the cases that matter - nothing uploaded,
+ * unreadable, request failed - and spelling them out each time meant three
+ * copies that had to be kept in step with the type.
+ */
+export function unclearAnalysis(
+  checkId: string,
+  over: Partial<CheckAnalysis> = {},
+): CheckAnalysis {
+  return {
+    checkId,
+    verdict: "unclear",
+    confidence: 0,
+    summaryKo: "",
+    summaryEn: "",
+    keyFacts: [],
+    issuesKo: [],
+    issuesEn: [],
+    instructionsKo: [],
+    instructionsEn: [],
+    documentsRead: [],
+    analyzedAt: new Date().toISOString(),
+    ...over,
+  };
 }
 
-export function isAiConfigured(): boolean {
-  return readEnv("OPENROUTER_API_KEY").length > 0;
+type LoadedFile = { name: string; dataUrl: string };
+
+/**
+ * Short-lived cache of documents already fetched and encoded.
+ *
+ * The checklist deliberately overlaps - the articles of incorporation feed five
+ * different checks, the corporate registry four - so a full run would otherwise
+ * download and base64 the same PDF once per check: 36 fetches for 22 distinct
+ * files, several of them fired simultaneously within one batch.
+ *
+ * A minute is comfortably longer than a run and short enough that a document
+ * re-uploaded mid-session isn't read from a stale copy. Promises are cached
+ * rather than results so concurrent checks share one fetch instead of racing.
+ */
+const CACHE_MS = 60_000;
+const fileCache = new Map<string, { at: number; file: Promise<ReadFile | null> }>();
+
+function cachedRead(dealId: string, filename: string): Promise<ReadFile | null> {
+  const key = `${dealId}/${filename}`;
+  const hit = fileCache.get(key);
+
+  if (hit && Date.now() - hit.at < CACHE_MS) return hit.file;
+
+  const file = readFileAsDataUrl(dealId, filename);
+  fileCache.set(key, { at: Date.now(), file });
+
+  // A rejected promise must not be cached, or one blip poisons the whole run.
+  file.catch(() => fileCache.delete(key));
+
+  // Cheap sweep so a long-lived instance doesn't hold every document it ever
+  // read; there's no eviction otherwise.
+  if (fileCache.size > 64) {
+    for (const [k, v] of fileCache) {
+      if (Date.now() - v.at >= CACHE_MS) fileCache.delete(k);
+    }
+  }
+
+  return file;
+}
+
+/**
+ * Reads documents for a request, stopping at the byte budget.
+ *
+ * Returns what fits rather than everything asked for - a request that's too
+ * large fails after paying for every download, which is the worst of both.
+ */
+async function loadFiles(
+  dealId: string,
+  filenames: string[],
+  limit: number,
+): Promise<LoadedFile[]> {
+  const loaded = await Promise.all(
+    filenames.slice(0, limit).map(async (name) => ({
+      name,
+      file: await cachedRead(dealId, name),
+    })),
+  );
+
+  const usable: LoadedFile[] = [];
+  let budget = MAX_REQUEST_BYTES;
+
+  for (const { name, file } of loaded) {
+    if (!file || !READABLE_TYPES.has(file.contentType)) continue;
+    if (file.dataUrl.length > budget) break;
+
+    budget -= file.dataUrl.length;
+    usable.push({ name, dataUrl: file.dataUrl });
+  }
+
+  return usable;
+}
+
+/** Turns loaded documents into the content parts the model expects. */
+function contentWith(brief: string, files: LoadedFile[]): unknown[] {
+  return [
+    { type: "text", text: brief },
+    ...files.map((file) => ({
+      type: "file",
+      file: { filename: file.name, file_data: file.dataUrl },
+    })),
+  ];
 }
 
 // ---------------------------------------------------------------------------
@@ -156,46 +276,27 @@ export async function analyzeCheck(
       .map((id) => documents.find((doc) => doc.id === id))
       .filter((doc) => doc !== undefined);
 
-    return {
-      checkId: item.id,
-      verdict: "unclear",
-      confidence: 0,
+    return unclearAnalysis(item.id, {
       summaryKo: "이 항목에 필요한 서류가 아직 업로드되지 않았습니다.",
       summaryEn: "The documents this check needs haven't been uploaded yet.",
-      keyFacts: [],
       issuesKo: missing.map((doc) => `${doc.nameKo} 미제출`),
       issuesEn: missing.map((doc) => `${doc.nameEn} not submitted`),
       instructionsKo: ["해당 서류를 업로드한 뒤 다시 분석하세요."],
       instructionsEn: ["Upload the documents, then run the analysis again."],
-      documentsRead: [],
       analyzedAt: now,
-    };
+    });
   }
 
-  const loaded = await Promise.all(
-    filenames.slice(0, 6).map(async (name) => ({
-      name,
-      dataUrl: await readFileAsDataUrl(deal.id, name),
-    })),
-  );
-
-  const usable = loaded.filter((file) => file.dataUrl !== null);
+  const usable = await loadFiles(deal.id, filenames, 6);
 
   if (usable.length === 0) {
-    return {
-      checkId: item.id,
-      verdict: "unclear",
-      confidence: 0,
+    return unclearAnalysis(item.id, {
       summaryKo: "서류를 읽을 수 없었습니다. 파일이 너무 크거나 형식이 지원되지 않습니다.",
       summaryEn: "The documents couldn't be read - too large, or an unsupported format.",
-      keyFacts: [],
-      issuesKo: [],
-      issuesEn: [],
       instructionsKo: ["PDF 형식으로 다시 업로드해 주세요."],
       instructionsEn: ["Re-upload as PDF."],
-      documentsRead: [],
       analyzedAt: now,
-    };
+    });
   }
 
   const brief = [
@@ -209,15 +310,14 @@ export async function analyzeCheck(
     `기업: ${deal.companyKo} (${deal.companyEn}) · ${deal.market === "overseas" ? "해외" : "국내"}`,
   ].join("\n");
 
-  const content: unknown[] = [{ type: "text", text: brief }];
-  for (const file of usable) {
-    content.push({
-      type: "file",
-      file: { filename: file.name, file_data: file.dataUrl },
-    });
-  }
-
-  const parsed = await callModel(CHECK_SYSTEM, content, CHECK_SCHEMA, 2500);
+  const parsed = await callOpenRouter({
+    system: CHECK_SYSTEM,
+    content: contentWith(brief, usable),
+    schema: CHECK_SCHEMA,
+    schemaName: "analysis",
+    maxTokens: 2500,
+    readsFiles: true,
+  });
 
   return {
     checkId: item.id,
@@ -284,16 +384,9 @@ export async function suggestExtraChecks(
 
   if (filenames.length < MIN_DOCS_FOR_SUGGESTIONS) return [];
 
-  // Cap the number sent: this is the one call that reads broadly rather than
-  // per-check, so it's the one that could get expensive.
-  const loaded = await Promise.all(
-    filenames.slice(0, 12).map(async (name) => ({
-      name,
-      dataUrl: await readFileAsDataUrl(deal.id, name),
-    })),
-  );
-
-  const usable = loaded.filter((file) => file.dataUrl !== null);
+  // This is the one call that reads broadly rather than per-check, so it's the
+  // one most likely to hit the request budget.
+  const usable = await loadFiles(deal.id, filenames, 12);
   if (usable.length === 0) return [];
 
   const brief = [
@@ -303,15 +396,15 @@ export async function suggestExtraChecks(
     ...standardTitles.map((title) => `- ${title}`),
   ].join("\n");
 
-  const content: unknown[] = [{ type: "text", text: brief }];
-  for (const file of usable) {
-    content.push({
-      type: "file",
-      file: { filename: file.name, file_data: file.dataUrl },
-    });
-  }
+  const parsed = await callOpenRouter({
+    system: EXTRA_SYSTEM,
+    content: contentWith(brief, usable),
+    schema: EXTRA_SCHEMA,
+    schemaName: "extra-checks",
+    maxTokens: 2500,
+    readsFiles: true,
+  });
 
-  const parsed = await callModel(EXTRA_SYSTEM, content, EXTRA_SCHEMA, 2500);
   const raw = Array.isArray(parsed.checks) ? parsed.checks : [];
 
   return raw.slice(0, 5).map((check: Record<string, unknown>) => ({
@@ -321,81 +414,6 @@ export async function suggestExtraChecks(
     whyEn: asText(check.whyEn),
     documentsRead: usable.map((file) => file.name),
   }));
-}
-
-// ---------------------------------------------------------------------------
-
-async function callModel(
-  system: string,
-  content: unknown[],
-  schema: unknown,
-  maxTokens: number,
-): Promise<Record<string, unknown>> {
-  const key = readEnv("OPENROUTER_API_KEY");
-  if (!key) throw new Error("OPENROUTER_API_KEY가 설정되지 않았습니다.");
-
-  const response = await fetch(ENDPOINT, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: model(),
-      max_tokens: maxTokens,
-      messages: [
-        { role: "system", content: system },
-        { role: "user", content },
-      ],
-      // native = the model reads the PDF itself, billed as input tokens. The
-      // mistral-ocr engine costs $2 per 1,000 pages, and native handled a real
-      // Korean scan fine, so there's nothing to buy.
-      plugins: [{ id: "file-parser", pdf: { engine: "native" } }],
-      response_format: {
-        type: "json_schema",
-        json_schema: { name: "analysis", strict: true, schema },
-      },
-    }),
-  });
-
-  const body = await response.json();
-  if (!response.ok || body?.error) {
-    throw new Error(describeProviderError(body, response.status));
-  }
-
-  const text: string = body?.choices?.[0]?.message?.content ?? "";
-  const cleaned = text.replace(/^```(?:json)?\s*|\s*```$/g, "").trim();
-  if (!cleaned) throw new Error("모델이 빈 응답을 반환했습니다.");
-
-  const parsed: unknown = JSON.parse(cleaned);
-  if (typeof parsed !== "object" || parsed === null) {
-    throw new Error("모델 응답 형식이 올바르지 않습니다.");
-  }
-
-  return parsed as Record<string, unknown>;
-}
-
-/**
- * Digs the real reason out of an OpenRouter failure.
- *
- * Its top-level message is "Provider returned error" no matter what went wrong,
- * with the useful part buried in metadata.raw. That cost an afternoon once -
- * the actual message was "Unsupported MIME type: application/octet-stream",
- * which says exactly what to fix, while the wrapper says nothing at all.
- */
-function describeProviderError(body: unknown, status: number): string {
-  const error = (body as { error?: Record<string, unknown> })?.error;
-  const outer = typeof error?.message === "string" ? error.message : `HTTP ${status}`;
-
-  const raw = (error?.metadata as { raw?: unknown })?.raw;
-  if (typeof raw !== "string") return outer;
-
-  try {
-    const inner = JSON.parse(raw) as { error?: { message?: string } };
-    if (inner?.error?.message) return `${outer}: ${inner.error.message}`;
-  } catch {
-    // raw isn't always JSON; the snippet is still better than nothing.
-    return `${outer}: ${raw.slice(0, 200)}`;
-  }
-
-  return outer;
 }
 
 // The schema constrains shape, not meaning - rebuild what we recognise.

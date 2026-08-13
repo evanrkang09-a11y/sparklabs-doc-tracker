@@ -16,7 +16,7 @@ import { useLang } from "./lang-provider";
  * entry, not restructuring this.
  */
 export default function Dashboard({ deals }: { deals: DealSummary[] }) {
-  const { lang, t, both } = useLang();
+  const { t, both } = useLang();
 
   const active = deals.filter((deal) => !deal.archived);
   if (active.length === 0) return null;
@@ -47,14 +47,6 @@ export default function Dashboard({ deals }: { deals: DealSummary[] }) {
             deal.totalRequired && deal.missingCount !== null
               ? deal.totalRequired - deal.missingCount
               : 0;
-          const docsPct = deal.totalRequired
-            ? Math.round((docsDone / deal.totalRequired) * 100)
-            : 0;
-
-          const ddDone = deal.totalChecks - deal.uncheckedCount;
-          const ddPct = deal.totalChecks
-            ? Math.round((ddDone / deal.totalChecks) * 100)
-            : 0;
 
           return (
             <li
@@ -62,8 +54,16 @@ export default function Dashboard({ deals }: { deals: DealSummary[] }) {
               className="grid grid-cols-1 items-center gap-2 rounded-lg border border-neutral-200 px-3 py-2 sm:grid-cols-[10rem_1fr_1fr] sm:gap-4 dark:border-neutral-800"
             >
               <span className="truncate text-sm font-medium">{name}</span>
-              <Meter label={t(T.progressDocs)} done={docsDone} total={deal.totalRequired ?? 0} percent={docsPct} lang={lang} />
-              <Meter label={t(T.progressDd)} done={ddDone} total={deal.totalChecks} percent={ddPct} lang={lang} />
+              <Meter
+                label={t(T.progressDocs)}
+                done={docsDone}
+                total={deal.totalRequired ?? 0}
+              />
+              <Meter
+                label={t(T.progressDd)}
+                done={deal.totalChecks - deal.uncheckedCount}
+                total={deal.totalChecks}
+              />
             </li>
           );
         })}
@@ -95,20 +95,13 @@ function Tile({
   );
 }
 
-function Meter({
-  label,
-  done,
-  total,
-  percent,
-  lang,
-}: {
-  label: string;
-  done: number;
-  total: number;
-  percent: number;
-  lang: string;
-}) {
+function Meter({ label, done, total }: { label: string; done: number; total: number }) {
+  // Same client module as the provider's consumer, so it reads the language
+  // itself rather than having it threaded down.
+  const { lang } = useLang();
+
   const complete = total > 0 && done >= total;
+  const percent = total > 0 ? Math.round((done / total) * 100) : 0;
 
   return (
     <div className="min-w-0">

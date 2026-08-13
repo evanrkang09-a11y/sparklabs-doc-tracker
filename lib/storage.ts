@@ -48,52 +48,48 @@ export async function deleteUploadedFile(
 }
 
 /**
- * Biggest file we'll send to a model. IR decks run to 20MB, and base64 adds a
- * third on top - past this the request is more likely to be rejected than to
- * tell us anything, and the decks aren't what the checks read anyway.
+ * Biggest single file worth pulling into memory to send anywhere. IR decks run
+ * to 20MB and base64 adds a third on top.
  */
-export const MAX_ANALYSIS_BYTES = 12 * 1024 * 1024;
+export const MAX_READ_BYTES = 12 * 1024 * 1024;
+
+export type ReadFile = {
+  /** base64 data URL, with a content type derived from the bytes. */
+  dataUrl: string;
+  contentType: string;
+};
 
 /**
- * Pulls one uploaded file back out of storage as a base64 data URL, ready to
- * hand to a model. Returns null when the file is missing or too large to be
- * worth sending.
+ * Pulls one uploaded file back out of storage as a data URL.
+ *
+ * The content type comes from the bytes rather than the stored label, which
+ * can't be trusted - a file named "등기부등본.pdf의 사본" has no .pdf on the
+ * end and was stored as octet-stream. Deciding what to *do* with a given type
+ * is the caller's business, not this module's.
  */
 export async function readFileAsDataUrl(
   dealId: string,
   filename: string,
-): Promise<string | null> {
+): Promise<ReadFile | null> {
   if (!filename || filename.includes("/") || filename.includes("\\")) return null;
 
   const found = await get(`${prefixForDeal(dealId)}${filename}`, {
     access: "private",
-    useCache: true,
+    // False so a re-uploaded document isn't analysed from its old bytes.
+    useCache: false,
   });
 
   if (!found?.stream) return null;
-  if (found.blob.size && found.blob.size > MAX_ANALYSIS_BYTES) return null;
+  if (found.blob.size && found.blob.size > MAX_READ_BYTES) return null;
 
   const bytes = Buffer.from(await new Response(found.stream).arrayBuffer());
+  const contentType = contentTypeFor(bytes, filename);
 
-  // The stored type can't be trusted. A file named "등기부등본.pdf의 사본" has
-  // no .pdf on the end, so the browser uploads it as application/octet-stream -
-  // and Google rejects that outright with "Unsupported MIME type", which is
-  // what made every analysis fail. The bytes themselves are unambiguous.
-  const type = sniffType(bytes) ?? found.blob.contentType;
-  if (!type || !MODEL_READABLE_TYPES.has(type)) return null;
-
-  return `data:${type};base64,${bytes.toString("base64")}`;
+  return {
+    dataUrl: `data:${contentType};base64,${bytes.toString("base64")}`,
+    contentType,
+  };
 }
-
-/** What the model will actually accept. Anything else is skipped, not guessed at. */
-const MODEL_READABLE_TYPES = new Set([
-  "application/pdf",
-  "image/png",
-  "image/jpeg",
-  "image/webp",
-  "image/gif",
-  "text/plain",
-]);
 
 /** Identifies a file from its leading bytes. Null when unrecognised. */
 function sniffType(bytes: Uint8Array): string | null {
@@ -138,15 +134,33 @@ export async function writeUploadedFile(
   const safe = filename.split(/[\\/]/).pop() ?? filename;
   if (!safe) throw new Error("Invalid filename");
 
-  await put(`${prefixForDeal(dealId)}${safe}`, Buffer.from(data), {
-    access: "private",
-    addRandomSuffix: false,
-    allowOverwrite: true,
-    contentType: contentType || guessContentType(safe),
-  });
+  await put(
+    `${prefixForDeal(dealId)}${safe}`,
+    // Zero-copy view rather than Buffer.from(data), which duplicates every
+    // extracted file in memory while a whole archive is being written.
+    Buffer.from(data.buffer, data.byteOffset, data.byteLength),
+    {
+      access: "private",
+      addRandomSuffix: false,
+      allowOverwrite: true,
+      contentType: contentType || contentTypeFor(data, safe),
+    },
+  );
 }
 
-function guessContentType(filename: string): string {
+/**
+ * The type of a file, from its bytes where possible.
+ *
+ * Extensions lie. A file called "등기부등본.pdf의 사본" has no .pdf on the end
+ * and would be filed as octet-stream, which the model then refuses to read -
+ * that failure is the whole reason this exists. The bytes are unambiguous, so
+ * they win; the extension is only a fallback for formats we don't sniff.
+ */
+export function contentTypeFor(bytes: Uint8Array, filename: string): string {
+  return sniffType(bytes) ?? extensionType(filename);
+}
+
+function extensionType(filename: string): string {
   const extension = filename.toLowerCase().split(".").pop() ?? "";
 
   return (

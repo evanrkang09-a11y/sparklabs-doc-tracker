@@ -5,8 +5,10 @@
  * check, so it runs when someone asks for it and the result stays until they
  * ask again. Opening the checklist should never quietly spend anything.
  *
- * Each entry records when it ran and which files it read, so a stale opinion
- * is visible as stale rather than passing for current.
+ * Each entry records when it ran and which files it read. The diligence screen
+ * compares analyzedAt against the newest upload and marks anything older as
+ * stale, so a reading of documents that have since changed can't quietly pass
+ * for current - a stale "looks satisfied" is the one that would do damage.
  */
 
 import { del, get, put } from "@vercel/blob";
@@ -24,9 +26,12 @@ function pathFor(dealId: string): string {
   return `analysis/${dealId}.json`;
 }
 
-function empty(dealId: string): AnalysisRecord {
+/** Exported so callers can build the same fallback rather than re-spelling it. */
+export function emptyAnalysis(dealId: string): AnalysisRecord {
   return { dealId, checks: {}, extraChecks: [], extraCheckedAt: null };
 }
+
+const empty = emptyAnalysis;
 
 export async function readAnalysis(dealId: string): Promise<AnalysisRecord> {
   const found = await get(pathFor(dealId), { access: "private", useCache: false });
