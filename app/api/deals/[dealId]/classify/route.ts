@@ -9,6 +9,7 @@
 import { getDeal } from "@/lib/deals-store";
 import { collectDealStatus, describe } from "@/lib/deal-status";
 import { classifyFilenames, isAiConfigured, MIN_CONFIDENCE } from "@/lib/classify";
+import { MISSING_KEY_MESSAGE } from "@/lib/openrouter";
 import { documentsFor } from "@/lib/documents";
 
 export async function POST(
@@ -24,7 +25,7 @@ export async function POST(
 
   if (!isAiConfigured()) {
     return Response.json(
-      { error: "OPENROUTER_API_KEY가 설정되지 않았습니다." },
+      { error: MISSING_KEY_MESSAGE },
       { status: 503 },
     );
   }

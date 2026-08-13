@@ -18,7 +18,7 @@ Four screens. (Week 1 had only ② and ③; ① and ④ arrived in week 2.)
 **⚠️ The assumption that changed — who uploads:** the first version gave each company a link to upload through. Then the mentor clarified it: **companies email their documents in, and a SparkLabs employee uploads them.** So the **whole site now sits behind a login** and no screen is reachable by an outsider. That one sentence changed the design substantially (see §6).
 
 **① Home / progress** — `/`
-The company list with each company's progress. A sidebar on the left filters by batch and holds the archive; a summary sits across the top. You can **add a company from the screen** (name / Korean or overseas / deal type), create batches, and assign companies to them. Finished companies can be **archived**, or **permanently deleted** if it really has to go.
+The company list with each company's progress. A sidebar on the left filters by batch and holds the archive; a summary sits across the top. You can **add a company from the screen** (name / Korean or overseas / deal type), create batches, and assign companies to them. Finished companies can be **archived**, or **permanently deleted** if it really has to go. A **stage filter** in the sidebar lets you narrow the list to companies at a given point in the process — collecting docs, under due diligence, or agreement ready — with live counts for each.
 
 **② Document collection tracker** — `/deal/<company>`
 The documents a company owes us before investment. When a file arrives, its filename is matched against the checklist and the item ticks itself. Wrongly uploaded files can be removed, and anything the filename matcher can't identify gets **an AI guess at which document it is**. If the company sent everything as **one ZIP, it gets unpacked** into individual documents.
@@ -28,7 +28,7 @@ The 13 checks that read the submitted documents against each other. Each has a c
 And **the AI reads the actual documents** — not the filenames, the PDF contents. It judges whether the item's standard is met, explains why, and suggests whether to tick it. Anything it notices outside the standard 13 items goes in a separate section.
 
 **④ Investment agreement** — `/agreement/<company>`
-The mentor's Word contract template, **filled in on the site**. The 85 places that were highlighted yellow in the original are wired to 57 input fields on the right, so typing shows up immediately in the contract preview on the left. When it's complete, **download it as .docx or .pdf**.
+The mentor's Word contract template, **filled in on the site**. The 85 places that were highlighted yellow in the original are wired to 57 input fields on the right, so typing shows up immediately in the contract preview on the left. When it's complete, **download it as .docx or .pdf**. An **AI autofill** button reads the uploaded documents and suggests values for empty fields as grey placeholder text — an Apply chip appears next to each suggested field, and an Apply all button fills everything at once. The Save and Save as PDF buttons are visually distinct (green filled vs. bordered) so they cannot be confused at a glance.
 
 ### The checklist
 
@@ -52,7 +52,7 @@ The 13 points from the mentor's "#3. 서류 실사" document, split into two gro
 | Language | TypeScript |
 | Styling | Tailwind CSS v4 |
 | File storage | Vercel Blob (private) |
-| AI | OpenRouter → `google/gemini-2.5-flash-lite` |
+| AI | Google Gemini API (direct) — `gemini-2.5-flash-lite` |
 | Login | Auth.js (next-auth v5) + Google sign-in, `@sparklabs.co.kr` only |
 | Contracts | Fills the Word (.docx) file directly — `fflate` |
 | Hosting | Vercel |
@@ -72,7 +72,8 @@ The 13 points from the mentor's "#3. 서류 실사" document, split into two gro
 | `lib/comments-store.ts` | Per-item comments (one comment = one file) |
 | `lib/classify.ts` | The AI filename guesser |
 | `lib/analysis.ts` | **The AI reads document contents and judges each DD item** |
-| `lib/openrouter.ts` | The single door to the AI — swap models here |
+| `lib/openrouter.ts` | The single door to the AI — calls Google Gemini directly; swap the model here |
+| `lib/agreement-suggest.ts` | AI reads uploaded documents and returns suggested values for agreement fields |
 | `auth.ts` / `proxy.ts` | Login, and turning away anyone who isn't signed in |
 | `lib/agreement-fields.ts` | The map from 57 input fields to 85 places in the template |
 | `lib/agreement-docx.ts` | Puts the values into the Word file |
@@ -81,6 +82,7 @@ The 13 points from the mentor's "#3. 서류 실사" document, split into two gro
 | `app/deal/[dealId]/` | The upload screen |
 | `app/diligence/[dealId]/` | The DD screen |
 | `app/agreement/[dealId]/` | The contract screen |
+| `app/api/deals/[dealId]/agreement/suggest/` | POST endpoint for AI autofill suggestions |
 | `app/api/upload/` | Issues upload tokens |
 | `scripts/bench-models.mjs` | AI model comparison harness (see §5) |
 | `scripts/prepare-template.py` | Turns the yellow highlights in the contract into fillable slots (see §10) |
@@ -377,9 +379,15 @@ Honest limitations:
 - gemini-2.5-flash-lite returned confidence `1.0` on every correct answer — its confidence scale is coarse. It did give `0.1` to the unanswerable one, which is the distinction that actually matters.
 - If finer calibration is ever needed, gemini-3.1-flash-lite was better at it — 3× the price, still under a tenth of a cent per run.
 
-**Switching models is one environment variable, no code change:** `OPENROUTER_MODEL=...`. Re-run the benchmark before changing it.
+**Switching models is one environment variable, no code change:** `GEMINI_MODEL=...`. Re-run the benchmark before changing it.
 
-> Note: the brief says "Claude API integration." OpenRouter includes Claude, so `OPENROUTER_MODEL=anthropic/claude-haiku-4.5` makes this a Claude integration as-is. It's the same answer at 13× the cost, which is why Gemini is the default.
+> Note: the brief says "Claude API integration." OpenRouter includes Claude, so `GEMINI_MODEL=anthropic/claude-haiku-4.5` makes this a Claude integration as-is. It's the same answer at 13× the cost, which is why Gemini is the default.
+
+### After the benchmark: removing the middleman
+
+Once `gemini-2.5-flash-lite` was confirmed as the best fit, **OpenRouter was replaced with a direct Google Gemini API call.** OpenRouter is a useful exploration tool — one key, 400 models — but in production it adds a markup on every call, introduces an extra network hop, and depends on a third-party staying in business. Calling the model directly costs less and has one fewer moving part.
+
+The change was entirely internal to `lib/openrouter.ts` (the file kept its name so call sites needed no edits). The environment variable switched from `OPENROUTER_API_KEY` to `GOOGLE_AI_API_KEY`; the auth method switched from a `Bearer` header to a `?key=` query parameter; and the request/response shape was translated from OpenRouter's format to Gemini's. All four AI callers in the codebase needed zero changes.
 
 ---
 
@@ -482,13 +490,15 @@ Honest limitations:
 - The 85 template slots against the 57 input fields — **nothing missing, nothing claimed twice**
 - All re-checked on the deployed site after deploying
 
-**Still needs a person in a browser** (the login means I can't click through these myself):
+**Confirmed by a person in a browser (2026-08-13):**
 
-- Adding / archiving / permanently deleting a company
+- Adding a company, archiving it, permanently deleting it
 - Creating a batch and assigning companies to it
-- Writing and deleting comments — especially that **someone else's comment refuses to delete**
-- Filling a contract, saving, then signing in as another account and finding it there
+- Writing and deleting comments — someone else's comment **refused to delete**, as intended
+- Filling a contract, saving it, signing in as another account, and finding it there unchanged
 - Downloading the contract as .docx and .pdf
+- Stage filter in sidebar — toggling each stage, deselecting, live counts
+- AI autofill suggestions on the agreement screen — per-field Apply chip, Apply all button
 
 ---
 
@@ -519,7 +529,7 @@ The mentor's requirement: **only SparkLabs employees get in.** My question was "
 
 1. **The years were frozen.** The template had `2026년` as plain text, not highlighted, so the first pass walked straight past it — which would mean you couldn't write next year's contract on this site. The financial statements section had `202X년`, left blank. → The years are fields now. But **the new markers were appended at the end** (from 78 onwards): inserting them in the middle would shift every later number by one and break all 77 existing mappings at once.
 2. **A single `&` makes Word refuse the file.** A company name containing `&` gets "the file is corrupt", because Word is XML underneath and `&` is special there. → `& < > " '` are escaped as values go in.
-3. **The 회사 party block in the template holds SparkLabs fund details.** The company being invested in appears in the signature block. That needs the mentor's confirmation, so it's **left as-is and exposed as fields** for now.
+3. **The 회사 party block in the template holds SparkLabs fund details.** The company being invested in appears in the signature block. **Confirmed by the mentor (2026-08-13): this is correct.** The 회사 block intentionally holds the SparkLabs fund information, not the investee company. The fields are editable on the agreement screen.
 
 **Empty slots stay visible as `{{f27}}` rather than going blank.** A blank reads as a term deliberately left empty; a visible marker makes it obvious nothing was filled. The screen also reports how many are still outstanding.
 
@@ -547,13 +557,21 @@ The mentor's requirement: **only SparkLabs employees get in.** My question was "
 - [x] Contract drafting plus .docx / .pdf download
 - [x] Service account key deleted (§7)
 
+**After week 2:**
+
+- [x] Stage filter in the sidebar — filter companies by collecting docs / due diligence / agreement ready, with live counts for each stage
+- [x] AI autofill suggestions on the agreement screen — reads uploaded documents, proposes values as grey placeholder text, per-field Apply chip and Apply all button
+- [x] Save vs Save as PDF button visual distinction (green filled vs. bordered)
+- [x] OpenRouter → Google Gemini direct API (same model `gemini-2.5-flash-lite`, one fewer middleman)
+- [x] All features browser-tested by a person (§8)
+- [x] 회사 block confirmed by mentor (§10-3)
+- [x] Pushed to GitHub
+
 **Remaining:**
 
-- [ ] Click through the "still needs a person in a browser" list in §8
-- [ ] Needs the mentor's confirmation: the 회사 block in the template holds SparkLabs fund details (§10-3)
 - [ ] Obtain the internal 예비실사 체크리스트 standard form and fold it in
 - [ ] Wire in a conversion service if a byte-identical PDF is required (§10)
-- [ ] Push to GitHub so there's a backup off this laptop (right now it only exists here)
+- [ ] Delete the old `OPENROUTER_API_KEY` from the Vercel dashboard (replaced by `GOOGLE_AI_API_KEY`)
 
 ---
 

@@ -19,6 +19,7 @@ import {
   unclearAnalysis,
   type CheckAnalysis,
 } from "@/lib/analysis";
+import { MISSING_KEY_MESSAGE } from "@/lib/openrouter";
 import { readAnalysis, saveCheckAnalyses, saveExtraChecks } from "@/lib/analysis-store";
 
 /** Checks analysed at once. Each is its own model call, so this bounds a run. */
@@ -53,7 +54,7 @@ export async function POST(
 
   if (!isAiConfigured()) {
     return Response.json(
-      { error: "OPENROUTER_API_KEY가 설정되지 않았습니다." },
+      { error: MISSING_KEY_MESSAGE },
       { status: 503 },
     );
   }

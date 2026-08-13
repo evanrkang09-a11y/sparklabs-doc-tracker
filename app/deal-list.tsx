@@ -22,6 +22,15 @@ export type DealSummary = Pick<
   totalChecks: number;
 };
 
+export type DealStage = "collecting" | "diligence" | "ready";
+
+/** Where a deal stands based on docs and diligence completion. */
+export function stageOf(deal: Pick<DealSummary, "missingCount" | "uncheckedCount">): DealStage {
+  if ((deal.missingCount ?? 1) > 0) return "collecting";
+  if (deal.uncheckedCount > 0) return "diligence";
+  return "ready";
+}
+
 export default function DealList({
   deals,
   batches,
@@ -35,6 +44,7 @@ export default function DealList({
   const [adding, setAdding] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
   const [selectedBatch, setSelectedBatch] = useState<string | null>(null);
+  const [selectedStage, setSelectedStage] = useState<DealStage | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -42,7 +52,8 @@ export default function DealList({
 
   const visible = deals
     .filter((deal) => showArchived || !deal.archived)
-    .filter((deal) => matchesBatch(deal, selectedBatch));
+    .filter((deal) => matchesBatch(deal, selectedBatch))
+    .filter((deal) => selectedStage === null || stageOf(deal) === selectedStage);
 
   // Batches in creation order, then anything unassigned last - an unassigned
   // pile at the top would push the real groupings down the page. When the
@@ -117,8 +128,10 @@ export default function DealList({
           deals={deals}
           batches={batches}
           selectedBatch={selectedBatch}
+          selectedStage={selectedStage}
           showArchived={showArchived}
           onSelectBatch={setSelectedBatch}
+          onSelectStage={setSelectedStage}
         />
 
         <div className="min-w-0">

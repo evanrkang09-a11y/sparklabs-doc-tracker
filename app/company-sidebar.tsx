@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { matchesBatch, UNASSIGNED_BATCH, type Batch } from "@/lib/deals";
-import type { DealSummary } from "./deal-list";
+import { type DealStage, type DealSummary, stageOf } from "./deal-list";
 import { T } from "@/lib/i18n";
 import { useLang } from "./lang-provider";
 
@@ -20,21 +20,27 @@ export default function CompanySidebar({
   deals,
   batches,
   selectedBatch,
+  selectedStage,
   showArchived,
   onSelectBatch,
+  onSelectStage,
 }: {
   deals: DealSummary[];
   batches: Batch[];
   selectedBatch: string | null;
+  selectedStage: DealStage | null;
   /** Kept in step with the list - otherwise the two panes show different sets. */
   showArchived: boolean;
   onSelectBatch: (batchId: string | null) => void;
+  onSelectStage: (stage: DealStage | null) => void;
 }) {
   const { t, both } = useLang();
 
   const active = deals.filter((deal) => showArchived || !deal.archived);
   const countIn = (batchId: string | null) =>
     active.filter((deal) => deal.batchId === batchId).length;
+  const countAtStage = (stage: DealStage) =>
+    active.filter((deal) => stageOf(deal) === stage).length;
 
   const unassigned = countIn(null);
 
@@ -73,6 +79,35 @@ export default function CompanySidebar({
             />
           </li>
         )}
+      </ul>
+
+      <p className="mb-2 text-xs font-semibold text-neutral-500">{t(T.stageLabel)}</p>
+
+      <ul className="mb-5 flex gap-1.5 overflow-x-auto pb-1 lg:flex-col lg:overflow-visible lg:pb-0">
+        <li className="shrink-0 lg:shrink">
+          <BatchButton
+            label={t(T.stageAll)}
+            count={active.length}
+            selected={selectedStage === null}
+            onClick={() => onSelectStage(null)}
+          />
+        </li>
+        {(
+          [
+            ["collecting", t(T.stageCollecting)],
+            ["diligence", t(T.stageDiligence)],
+            ["ready", t(T.stageReady)],
+          ] as [DealStage, string][]
+        ).map(([stage, label]) => (
+          <li key={stage} className="shrink-0 lg:shrink">
+            <BatchButton
+              label={label}
+              count={countAtStage(stage)}
+              selected={selectedStage === stage}
+              onClick={() => onSelectStage(selectedStage === stage ? null : stage)}
+            />
+          </li>
+        ))}
       </ul>
 
       <p className="mb-2 text-xs font-semibold text-neutral-500">

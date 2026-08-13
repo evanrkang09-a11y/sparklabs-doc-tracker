@@ -10,6 +10,7 @@ import {
   tokenValues,
   type AgreementValues,
 } from "@/lib/agreement-fields";
+import type { FieldSuggestions } from "@/lib/agreement-suggest";
 import type { AgreementRecord } from "@/lib/agreement-store";
 import type { Block, DocxLayout } from "@/lib/docx-layout";
 import { T } from "@/lib/i18n";
@@ -66,6 +67,10 @@ export default function AgreementEditor({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
+
+  const [suggestions, setSuggestions] = useState<FieldSuggestions>({});
+  const [suggesting, setSuggesting] = useState(false);
+  const [suggestMessage, setSuggestMessage] = useState<string | null>(null);
 
   /** The field being edited, and the one slot the contract is scrolled to. */
   const [active, setActive] = useState<ActiveSlot>(null);
@@ -194,6 +199,41 @@ export default function AgreementEditor({
     }
   }
 
+  async function fetchSuggestions() {
+    setSuggesting(true);
+    setSuggestMessage(null);
+
+    try {
+      const response = await fetch(`/api/deals/${deal.id}/agreement/suggest`, {
+        method: "POST",
+      });
+
+      const parsed = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(parsed?.error ?? `${response.status}`);
+
+      const found = parsed as FieldSuggestions;
+      setSuggestions(found);
+
+      const count = Object.keys(found).length;
+      setSuggestMessage(count === 0 ? t(T.aiSuggestNone) : null);
+    } catch (problem) {
+      setSuggestMessage(`${t(T.aiSuggestFailed)}: ${describe(problem)}`);
+    } finally {
+      setSuggesting(false);
+    }
+  }
+
+  /** Applies all suggestions to fields that are still empty. */
+  function applyAllSuggestions() {
+    setValues((current) => {
+      const next = { ...current };
+      for (const [fieldId, suggestion] of Object.entries(suggestions)) {
+        if (!next[fieldId]?.trim()) next[fieldId] = suggestion;
+      }
+      return next;
+    });
+  }
+
   function focusField(id: string) {
     const node = fieldRefs.current.get(id);
     node?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -225,11 +265,12 @@ export default function AgreementEditor({
                 : t(T.neverSaved)}
           </span>
 
+          {/* Save: emerald so it stands apart from the PDF button beside it. */}
           <button
             type="button"
             onClick={save}
             disabled={saving || !dirty}
-            className="rounded-lg border border-neutral-300 px-3 py-1.5 text-sm font-medium transition-colors hover:bg-neutral-100 disabled:opacity-50 dark:border-neutral-700 dark:hover:bg-neutral-800"
+            className="rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-emerald-700 disabled:opacity-50"
           >
             {saving ? t(T.preparing) : t(T.saveAgreement)}
           </button>
@@ -316,6 +357,39 @@ export default function AgreementEditor({
             )}
           </div>
 
+          {/* AI suggestion panel */}
+          <div className="mb-4 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={fetchSuggestions}
+              disabled={suggesting}
+              className="rounded-lg border border-neutral-300 px-3 py-1.5 text-xs font-medium transition-colors hover:bg-neutral-100 disabled:opacity-50 dark:border-neutral-700 dark:hover:bg-neutral-800"
+            >
+              {suggesting ? t(T.aiSuggesting) : t(T.aiSuggestFields)}
+            </button>
+
+            {Object.keys(suggestions).length > 0 && (
+              <>
+                <span className="text-xs text-neutral-500">
+                  {Object.keys(suggestions).length}{t(T.aiSuggestCount)}
+                </span>
+                <button
+                  type="button"
+                  onClick={applyAllSuggestions}
+                  className="rounded-lg bg-sky-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-sky-700"
+                >
+                  {t(T.aiSuggestApplyAll)}
+                </button>
+              </>
+            )}
+          </div>
+
+          {suggestMessage && (
+            <p className="mb-4 rounded-lg border border-neutral-200 px-3 py-2 text-xs text-neutral-500 dark:border-neutral-800">
+              {suggestMessage}
+            </p>
+          )}
+
           {AGREEMENT_GROUPS.map((group) => (
             <section key={group.id} className="mb-5">
               <h2 className="mb-2 border-b border-neutral-200 pb-1 text-xs font-semibold dark:border-neutral-800">
@@ -328,6 +402,9 @@ export default function AgreementEditor({
                   const off =
                     field.standard && field.default && value.trim() !== field.default;
                   const slots = slotsByField.get(field.id)?.length ?? 0;
+
+                  const suggestion = suggestions[field.id];
+                  const hasSuggestion = suggestion && !value.trim();
 
                   return (
                     <div key={field.id}>
@@ -346,6 +423,20 @@ export default function AgreementEditor({
                         {slots > 1 && (
                           <span className="ml-1 text-neutral-400">×{slots}</span>
                         )}
+                        {hasSuggestion && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setValues((current) => ({
+                                ...current,
+                                [field.id]: suggestion,
+                              }))
+                            }
+                            className="ml-1.5 rounded bg-sky-100 px-1 py-0.5 text-[10px] font-normal text-sky-700 transition-colors hover:bg-sky-200 dark:bg-sky-950 dark:text-sky-300"
+                          >
+                            {t(T.aiSuggestApply)}
+                          </button>
+                        )}
                       </label>
 
                       <input
@@ -354,6 +445,7 @@ export default function AgreementEditor({
                           if (node) fieldRefs.current.set(field.id, node);
                         }}
                         value={value}
+                        placeholder={suggestion ?? undefined}
                         onFocus={() => locate(field.id)}
                         onBlur={() => setActive(null)}
                         inputMode={
@@ -367,7 +459,7 @@ export default function AgreementEditor({
                             [field.id]: event.target.value,
                           }))
                         }
-                        className={`${input} ${
+                        className={`${input} placeholder:text-neutral-400 dark:placeholder:text-neutral-600 ${
                           off ? "border-amber-400 dark:border-amber-700" : ""
                         }`}
                       />

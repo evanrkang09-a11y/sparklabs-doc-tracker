@@ -273,6 +273,22 @@ export const T = {
   autoRefresh: { ko: "자동 새로고침", en: "auto-refresh" },
   seconds: { ko: "초", en: "s" },
 
+  // --- stage filter ---
+  stageLabel: { ko: "단계", en: "Stage" },
+  stageAll: { ko: "전체", en: "All stages" },
+  stageCollecting: { ko: "서류 수집 중", en: "Collecting docs" },
+  stageDiligence: { ko: "실사 중", en: "Due diligence" },
+  stageReady: { ko: "계약 준비", en: "Agreement ready" },
+
+  // --- AI suggestions for agreement ---
+  aiSuggestFields: { ko: "AI 자동 입력", en: "AI autofill" },
+  aiSuggesting: { ko: "분석 중…", en: "Analysing…" },
+  aiSuggestApply: { ko: "적용", en: "Apply" },
+  aiSuggestApplyAll: { ko: "전체 적용", en: "Apply all" },
+  aiSuggestCount: { ko: "개 항목 제안됨", en: "suggestions found" },
+  aiSuggestNone: { ko: "업로드된 서류에서 값을 찾지 못했습니다.", en: "No values found in the uploaded documents." },
+  aiSuggestFailed: { ko: "AI 제안 실패", en: "AI suggestion failed" },
+
   // --- diligence ---
   diligenceTitle: { ko: "서류 실사", en: "Document Due Diligence" },
   internalBanner: {
