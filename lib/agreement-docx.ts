@@ -116,9 +116,16 @@ export async function templateParagraphs(): Promise<string[]> {
 
   // One entry per <w:p>, with its runs concatenated. Enough for a readable
   // preview; the .docx download is what carries the real formatting.
-  paragraphCache = [...xml.matchAll(/<w:p[ >][\s\S]*?<\/w:p>/g)]
+  //
+  // The `(?![^>]*\/>)` in both patterns skips SELF-CLOSING tags. Word writes an
+  // empty run of text as `<w:t xml:space="preserve" />` - 88 of them in this
+  // template - and without the guard that reads as an opening tag with no
+  // closing one, so the match runs on to the next `</w:t>` and drags every
+  // attribute and tag in between into the "text". That put raw
+  // WordprocessingML on screen in 14 paragraphs.
+  paragraphCache = [...xml.matchAll(/<w:p\b(?![^>]*\/>)[^>]*>[\s\S]*?<\/w:p>/g)]
     .map((match) =>
-      [...match[0].matchAll(/<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>/g)]
+      [...match[0].matchAll(/<w:t\b(?![^>]*\/>)[^>]*>([\s\S]*?)<\/w:t>/g)]
         .map((run) => unescapeXml(run[1]))
         .join(""),
     )

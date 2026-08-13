@@ -578,6 +578,16 @@ export const ALL_FIELDS: AgreementField[] = AGREEMENT_GROUPS.flatMap(
   (group) => group.fields,
 );
 
+/**
+ * Which field fills a given token - the reverse of `field.tokens`.
+ *
+ * The screen needs this to answer "what goes here?" when looking at a slot in
+ * the contract, where the field list answers "where does this go?".
+ */
+export const FIELD_BY_TOKEN: Record<string, AgreementField> = Object.fromEntries(
+  ALL_FIELDS.flatMap((field) => field.tokens.map((token) => [token, field])),
+);
+
 /** Values keyed by field id, as typed. */
 export type AgreementValues = Record<string, string>;
 
