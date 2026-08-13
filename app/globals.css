@@ -61,7 +61,17 @@ body {
     widows: 3;
   }
 
+  /* No printer margin. The contract sheet already carries the document's own
+     page margins (70.9pt, read from its sectPr), and adding the printer's on
+     top would print the contract at margins it doesn't have. */
   @page {
-    margin: 20mm 18mm;
+    margin: 0;
+  }
+
+  /* Which leaves the other screens needing their own. They're the ones built
+     around <main>; the contract sheet isn't. !important because Tailwind's
+     px-6/py-10 on those elements would otherwise win. */
+  main {
+    padding: 18mm 16mm !important;
   }
 }

@@ -51,3 +51,6 @@ next-env.d.ts
 # Generated contracts - never commit a filled agreement
 test-filled-agreement.docx
 *-filled-agreement.docx
+
+# Offline render used to eyeball the contract layout
+contract-preview.html

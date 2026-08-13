@@ -16,9 +16,9 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { unzipSync, zipSync } from "fflate";
 import { tokenValues, type AgreementValues } from "./agreement-fields";
+import { readLayout, type DocxLayout } from "./docx-layout";
 
 const TEMPLATE_PATH = path.join(process.cwd(), "templates", "investment-agreement.docx");
-const DOCUMENT_PART = "word/document.xml";
 
 /** Parts whose text may contain tokens. Headers and footers can quote parties. */
 const TEXT_PARTS = /^word\/(document|header\d*|footer\d*|footnotes|endnotes)\.xml$/;
@@ -104,41 +104,16 @@ export async function fillAgreement(values: AgreementValues): Promise<FilledDocx
   return { bytes, unfilled: [...unfilled].sort() };
 }
 
-/** The preview text, parsed once - it's the same for every company. */
-let paragraphCache: string[] | null = null;
+/** The parsed layout, built once - it's the same for every company. */
+let layoutCache: DocxLayout | null = null;
 
-/** Reads the template's plain text, for the on-screen preview. */
-export async function templateParagraphs(): Promise<string[]> {
-  if (paragraphCache) return paragraphCache;
-
-  const parts = await templateParts();
-  const xml = new TextDecoder().decode(parts[DOCUMENT_PART]);
-
-  // One entry per <w:p>, with its runs concatenated. Enough for a readable
-  // preview; the .docx download is what carries the real formatting.
-  //
-  // The `(?![^>]*\/>)` in both patterns skips SELF-CLOSING tags. Word writes an
-  // empty run of text as `<w:t xml:space="preserve" />` - 88 of them in this
-  // template - and without the guard that reads as an opening tag with no
-  // closing one, so the match runs on to the next `</w:t>` and drags every
-  // attribute and tag in between into the "text". That put raw
-  // WordprocessingML on screen in 14 paragraphs.
-  paragraphCache = [...xml.matchAll(/<w:p\b(?![^>]*\/>)[^>]*>[\s\S]*?<\/w:p>/g)]
-    .map((match) =>
-      [...match[0].matchAll(/<w:t\b(?![^>]*\/>)[^>]*>([\s\S]*?)<\/w:t>/g)]
-        .map((run) => unescapeXml(run[1]))
-        .join(""),
-    )
-    .map((line) => line.trimEnd());
-
-  return paragraphCache;
-}
-
-function unescapeXml(value: string): string {
-  return value
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&apos;/g, "'")
-    .replace(/&amp;/g, "&");
+/**
+ * The template as a drawable layout, for the on-screen preview.
+ *
+ * Parsed on the server: the .docx lives on disk, and doing it here means the
+ * browser is handed a small tree of paragraphs instead of 2MB of zip.
+ */
+export async function templateLayout(): Promise<DocxLayout> {
+  layoutCache ??= readLayout(await templateParts());
+  return layoutCache;
 }
