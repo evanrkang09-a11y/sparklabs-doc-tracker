@@ -24,3 +24,44 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/*
+ * Printing the agreement.
+ *
+ * "Save as PDF" is the browser's print dialog on the contract preview, so this
+ * strips the application around it: no header, no form panel, no scroll box,
+ * and the document at a readable size on white. It is not a Word-rendered PDF -
+ * pagination will differ from the .docx - but it is a real, correct contract.
+ */
+@media print {
+  header,
+  nav,
+  aside {
+    display: none !important;
+  }
+
+  html,
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+
+  main > div {
+    display: block !important;
+  }
+
+  /* Let the document flow across pages instead of sitting in a scroll box. */
+  .print\:max-h-none {
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  p {
+    orphans: 3;
+    widows: 3;
+  }
+
+  @page {
+    margin: 20mm 18mm;
+  }
+}

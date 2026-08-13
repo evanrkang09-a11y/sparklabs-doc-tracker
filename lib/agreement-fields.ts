@@ -46,6 +46,19 @@ export const AGREEMENT_GROUPS: AgreementGroup[] = [
     titleEn: "1. Dates",
     fields: [
       {
+        id: "signYear",
+        labelKo: "체결일 — 연도",
+        labelEn: "Signing date — year",
+        kind: "year",
+        // The template wrote 2026 as literal text, so this was never a
+        // placeholder. Tokenised deliberately - otherwise every agreement is
+        // stuck in 2026.
+        tokens: ["f78", "f79", "f82", "f84", "f85"],
+        default: "2026",
+        hintKo: "표지·전문·서명란·별지2의 연도를 함께 바꿉니다",
+        hintEn: "Changes the year on the cover, preamble, signature block and appendix 2",
+      },
+      {
         id: "signMonth",
         labelKo: "체결일 — 월",
         labelEn: "Signing date — month",
@@ -61,6 +74,14 @@ export const AGREEMENT_GROUPS: AgreementGroup[] = [
         labelEn: "Signing date — day",
         kind: "number",
         tokens: ["f3", "f5", "f54", "f71", "f69"],
+      },
+      {
+        id: "paymentYear",
+        labelKo: "납입기일 — 연도",
+        labelEn: "Payment date — year",
+        kind: "year",
+        tokens: ["f80"],
+        default: "2026",
       },
       {
         id: "paymentMonth",
@@ -79,6 +100,14 @@ export const AGREEMENT_GROUPS: AgreementGroup[] = [
         tokens: ["f27"],
       },
       {
+        id: "closingYear",
+        labelKo: "거래완결 기한 — 연도",
+        labelEn: "Closing deadline — year",
+        kind: "year",
+        tokens: ["f81"],
+        default: "2026",
+      },
+      {
         id: "closingMonth",
         labelKo: "거래완결 기한 — 월",
         labelEn: "Closing deadline — month",
@@ -93,6 +122,17 @@ export const AGREEMENT_GROUPS: AgreementGroup[] = [
         labelEn: "Closing deadline — day",
         kind: "number",
         tokens: ["f32"],
+      },
+      {
+        id: "financialsYear",
+        labelKo: "재무제표 기준일 — 연도",
+        labelEn: "Financial statements as of — year",
+        kind: "year",
+        // The template printed this as "202X년", so it always needed filling -
+        // it just wasn't highlighted.
+        tokens: ["f83"],
+        hintKo: "원본 서식에는 '202X년'으로 비어 있었습니다",
+        hintEn: "The template left this as '202X년'",
       },
       {
         id: "financialsMonth",

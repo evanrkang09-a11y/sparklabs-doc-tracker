@@ -14,6 +14,7 @@ import { deleteAllUploads } from "@/lib/storage";
 import { deleteDiligence } from "@/lib/diligence-store";
 import { deleteAllComments } from "@/lib/comments-store";
 import { deleteAnalysis } from "@/lib/analysis-store";
+import { deleteAgreement } from "@/lib/agreement-store";
 
 export async function PATCH(
   request: Request,
@@ -84,6 +85,7 @@ export async function DELETE(
       deleteDiligence(dealId),
       deleteAllComments(dealId),
       deleteAnalysis(dealId),
+      deleteAgreement(dealId),
     ]);
 
     await deleteDeal(dealId);

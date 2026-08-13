@@ -39,6 +39,28 @@ function escapeXml(value: string): string {
     .replace(/'/g, "&apos;");
 }
 
+/**
+ * The template, read and unzipped once per server instance.
+ *
+ * It's a 2MB archive that never changes between deployments, so reading and
+ * inflating it on every page load and every download is pure waste. Cached as a
+ * promise so concurrent requests share one read rather than racing.
+ */
+let templateCache: Promise<Record<string, Uint8Array>> | null = null;
+
+function templateParts(): Promise<Record<string, Uint8Array>> {
+  templateCache ??= readFile(TEMPLATE_PATH)
+    .then((buffer) => unzipSync(new Uint8Array(buffer)))
+    .catch((problem) => {
+      // Don't cache a failure - a transient read error would otherwise break
+      // the feature until the instance recycled.
+      templateCache = null;
+      throw problem;
+    });
+
+  return templateCache;
+}
+
 export type FilledDocx = {
   bytes: Uint8Array;
   /** Tokens that had no value and remain visible in the output. */
@@ -46,8 +68,9 @@ export type FilledDocx = {
 };
 
 export async function fillAgreement(values: AgreementValues): Promise<FilledDocx> {
-  const template = new Uint8Array(await readFile(TEMPLATE_PATH));
-  const parts = unzipSync(template);
+  // A shallow copy: zipSync would otherwise write back into the cached parts,
+  // and the next request would inherit this contract's values.
+  const parts = { ...(await templateParts()) };
 
   const replacements = tokenValues(values);
   const decoder = new TextDecoder();
@@ -81,21 +104,27 @@ export async function fillAgreement(values: AgreementValues): Promise<FilledDocx
   return { bytes, unfilled: [...unfilled].sort() };
 }
 
+/** The preview text, parsed once - it's the same for every company. */
+let paragraphCache: string[] | null = null;
+
 /** Reads the template's plain text, for the on-screen preview. */
 export async function templateParagraphs(): Promise<string[]> {
-  const template = new Uint8Array(await readFile(TEMPLATE_PATH));
-  const parts = unzipSync(template);
+  if (paragraphCache) return paragraphCache;
+
+  const parts = await templateParts();
   const xml = new TextDecoder().decode(parts[DOCUMENT_PART]);
 
   // One entry per <w:p>, with its runs concatenated. Enough for a readable
   // preview; the .docx download is what carries the real formatting.
-  return [...xml.matchAll(/<w:p[ >][\s\S]*?<\/w:p>/g)]
+  paragraphCache = [...xml.matchAll(/<w:p[ >][\s\S]*?<\/w:p>/g)]
     .map((match) =>
       [...match[0].matchAll(/<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>/g)]
         .map((run) => unescapeXml(run[1]))
         .join(""),
     )
     .map((line) => line.trimEnd());
+
+  return paragraphCache;
 }
 
 function unescapeXml(value: string): string {

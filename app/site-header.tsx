@@ -29,6 +29,7 @@ export default function SiteHeader({
   const pathname = usePathname();
 
   const onDiligence = pathname.startsWith("/diligence");
+  const onAgreement = pathname.startsWith("/agreement");
   const company = companyKo && companyEn ? pick(companyKo, companyEn) : undefined;
 
   return (
@@ -83,11 +84,15 @@ export default function SiteHeader({
 
       {dealId && (
         <nav className="mx-auto flex max-w-3xl gap-1 px-6">
-          <Tab href={`/deal/${dealId}`} active={!onDiligence}>
+          {/* The order the work actually happens in: collect, assess, contract. */}
+          <Tab href={`/deal/${dealId}`} active={!onDiligence && !onAgreement}>
             {t(T.tabDocuments)}
           </Tab>
           <Tab href={`/diligence/${dealId}`} active={onDiligence}>
             {t(T.tabDiligence)}
+          </Tab>
+          <Tab href={`/agreement/${dealId}`} active={onAgreement}>
+            {t(T.tabAgreement)}
           </Tab>
         </nav>
       )}

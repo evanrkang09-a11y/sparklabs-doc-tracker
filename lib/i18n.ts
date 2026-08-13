@@ -171,6 +171,36 @@ export const T = {
     en: "Nothing found beyond the standard checklist.",
   },
 
+  // --- investment agreement ---
+  tabAgreement: { ko: "투자계약서", en: "Agreement" },
+  agreementTitle: { ko: "투자계약서 작성", en: "Investment Agreement" },
+  agreementIntro: {
+    ko: "노란색으로 표시되어 있던 값을 오른쪽에 입력하면 계약서에 자동으로 반영됩니다.",
+    en: "Fill the fields on the right and the contract updates automatically.",
+  },
+  downloadDocx: { ko: "DOCX 내려받기", en: "Download DOCX" },
+  downloadPdf: { ko: "PDF로 저장", en: "Save as PDF" },
+  preparing: { ko: "준비 중…", en: "Preparing…" },
+  saveAgreement: { ko: "저장", en: "Save" },
+  savedBy: { ko: "저장", en: "Saved" },
+  neverSaved: { ko: "아직 저장되지 않았습니다", en: "Not saved yet" },
+  unsavedChanges: { ko: "저장되지 않은 변경사항", en: "Unsaved changes" },
+  fieldsRemaining: { ko: "미입력 항목", en: "fields still empty" },
+  allFieldsFilled: { ko: "모든 항목 입력 완료", en: "All fields filled" },
+  standardChanged: {
+    ko: "표준 조항이 변경되었습니다",
+    en: "A standard term has been changed",
+  },
+  standardNote: {
+    ko: "스파크랩 표준: 위약벌 12%, 퇴사제한 5년",
+    en: "SparkLabs standard: 12% liquidated damages, 5-year restriction",
+  },
+  jumpToField: { ko: "해당 항목으로 이동", en: "Go to field" },
+  copiesNote: {
+    ko: "기본 3부 (스파크랩·회사·대표자). 대표자 외 이해관계인이 있으면 부수를 늘리고 그 정보도 계약서에 포함해야 합니다.",
+    en: "3 copies by default (SparkLabs, company, representative). Extra interested parties mean extra copies, and their details must go in the agreement too.",
+  },
+
   // --- comments ---
   comments: { ko: "코멘트", en: "Comments" },
   commentPlaceholder: {
