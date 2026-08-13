@@ -356,8 +356,8 @@ async function callModel(
   });
 
   const body = await response.json();
-  if (!response.ok) {
-    throw new Error(body?.error?.message ?? `OpenRouter 응답 ${response.status}`);
+  if (!response.ok || body?.error) {
+    throw new Error(describeProviderError(body, response.status));
   }
 
   const text: string = body?.choices?.[0]?.message?.content ?? "";
@@ -370,6 +370,32 @@ async function callModel(
   }
 
   return parsed as Record<string, unknown>;
+}
+
+/**
+ * Digs the real reason out of an OpenRouter failure.
+ *
+ * Its top-level message is "Provider returned error" no matter what went wrong,
+ * with the useful part buried in metadata.raw. That cost an afternoon once -
+ * the actual message was "Unsupported MIME type: application/octet-stream",
+ * which says exactly what to fix, while the wrapper says nothing at all.
+ */
+function describeProviderError(body: unknown, status: number): string {
+  const error = (body as { error?: Record<string, unknown> })?.error;
+  const outer = typeof error?.message === "string" ? error.message : `HTTP ${status}`;
+
+  const raw = (error?.metadata as { raw?: unknown })?.raw;
+  if (typeof raw !== "string") return outer;
+
+  try {
+    const inner = JSON.parse(raw) as { error?: { message?: string } };
+    if (inner?.error?.message) return `${outer}: ${inner.error.message}`;
+  } catch {
+    // raw isn't always JSON; the snippet is still better than nothing.
+    return `${outer}: ${raw.slice(0, 200)}`;
+  }
+
+  return outer;
 }
 
 // The schema constrains shape, not meaning - rebuild what we recognise.

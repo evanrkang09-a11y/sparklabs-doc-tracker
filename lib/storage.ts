@@ -74,9 +74,42 @@ export async function readFileAsDataUrl(
   if (found.blob.size && found.blob.size > MAX_ANALYSIS_BYTES) return null;
 
   const bytes = Buffer.from(await new Response(found.stream).arrayBuffer());
-  const type = found.blob.contentType || "application/octet-stream";
+
+  // The stored type can't be trusted. A file named "등기부등본.pdf의 사본" has
+  // no .pdf on the end, so the browser uploads it as application/octet-stream -
+  // and Google rejects that outright with "Unsupported MIME type", which is
+  // what made every analysis fail. The bytes themselves are unambiguous.
+  const type = sniffType(bytes) ?? found.blob.contentType;
+  if (!type || !MODEL_READABLE_TYPES.has(type)) return null;
 
   return `data:${type};base64,${bytes.toString("base64")}`;
+}
+
+/** What the model will actually accept. Anything else is skipped, not guessed at. */
+const MODEL_READABLE_TYPES = new Set([
+  "application/pdf",
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+  "image/gif",
+  "text/plain",
+]);
+
+/** Identifies a file from its leading bytes. Null when unrecognised. */
+function sniffType(bytes: Uint8Array): string | null {
+  const starts = (...signature: number[]) =>
+    signature.every((byte, index) => bytes[index] === byte);
+
+  if (starts(0x25, 0x50, 0x44, 0x46)) return "application/pdf"; // %PDF
+  if (starts(0x89, 0x50, 0x4e, 0x47)) return "image/png";
+  if (starts(0xff, 0xd8, 0xff)) return "image/jpeg";
+  if (starts(0x47, 0x49, 0x46, 0x38)) return "image/gif"; // GIF8
+  // RIFF....WEBP
+  if (starts(0x52, 0x49, 0x46, 0x46) && bytes[8] === 0x57 && bytes[9] === 0x45) {
+    return "image/webp";
+  }
+
+  return null;
 }
 
 /** Reads one uploaded file as raw bytes. Null when missing. */
