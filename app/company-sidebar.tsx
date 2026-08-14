@@ -34,6 +34,7 @@ export default function CompanySidebar({ deals }: { deals: DealSummary[] }) {
                 <SidebarLink href={`/deal/${deal.id}`} label="Tracking" />
                 <SidebarLink href={`/diligence/${deal.id}`} label="DD" />
                 <SidebarLink href={`/agreement/${deal.id}`} label="Agreement" />
+                <SidebarLink href={`/execution/${deal.id}`} label="Execution" />
               </ul>
             </li>
           );

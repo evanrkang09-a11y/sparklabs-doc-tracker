@@ -30,6 +30,7 @@ export default function SiteHeader({
 
   const onDiligence = pathname.startsWith("/diligence");
   const onAgreement = pathname.startsWith("/agreement");
+  const onExecution = pathname.startsWith("/execution");
   const company = companyKo && companyEn ? pick(companyKo, companyEn) : undefined;
 
   return (
@@ -100,6 +101,9 @@ export default function SiteHeader({
           </Tab>
           <Tab href={`/agreement/${dealId}`} active={onAgreement}>
             {t(T.tabAgreement)}
+          </Tab>
+          <Tab href={`/execution/${dealId}`} active={onExecution}>
+            {lang === "ko" ? "집행" : "Execution"}
           </Tab>
         </nav>
       )}
