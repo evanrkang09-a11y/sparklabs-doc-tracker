@@ -11,7 +11,10 @@
 
 import { readEnv, readEnvOr } from "./env";
 
-const MODEL = "gemini-2.0-flash";
+// A "latest" alias, not a pinned version — Google deprecates pinned models
+// (2.5-flash-lite, 2.0-flash both died), and this always points at the
+// current lite model so it survives their churn.
+const MODEL = "gemini-flash-lite-latest";
 const ENDPOINT_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 
 export const MISSING_KEY_MESSAGE = "GOOGLE_AI_API_KEY가 설정되지 않았습니다.";
