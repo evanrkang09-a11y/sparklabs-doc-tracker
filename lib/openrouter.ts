@@ -11,7 +11,7 @@
 
 import { readEnv, readEnvOr } from "./env";
 
-const MODEL = "gemini-2.5-flash-lite";
+const MODEL = "gemini-2.0-flash";
 const ENDPOINT_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 
 export const MISSING_KEY_MESSAGE = "GOOGLE_AI_API_KEY가 설정되지 않았습니다.";
