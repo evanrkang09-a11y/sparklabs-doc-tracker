@@ -8,6 +8,7 @@ import { T } from "@/lib/i18n";
 import { describe } from "@/lib/errors";
 import { useLang } from "./lang-provider";
 import AddCompanyForm from "./add-company-form";
+import ActionCenter from "./action-center";
 import Dashboard from "./dashboard";
 
 export type DealSummary = Pick<
@@ -19,6 +20,8 @@ export type DealSummary = Pick<
   totalRequired: number | null;
   uncheckedCount: number;
   totalChecks: number;
+  /** 납입일 from the execution record, if set - drives the deadline surfacing. */
+  paymentDate: string | null;
 };
 
 export type DealStage = "collecting" | "diligence" | "ready";
@@ -37,17 +40,24 @@ export default function DealList({
   deals: DealSummary[];
   batches: Batch[];
 }) {
-  const { t, both } = useLang();
+  const { t, both, lang } = useLang();
   const router = useRouter();
 
   const [adding, setAdding] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
+  const [query, setQuery] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const archivedCount = deals.filter((deal) => deal.archived).length;
 
-  const visible = deals.filter((deal) => showArchived || !deal.archived);
+  const q = query.trim().toLowerCase();
+  const visible = deals
+    .filter((deal) => showArchived || !deal.archived)
+    .filter(
+      (deal) =>
+        !q || `${deal.companyKo} ${deal.companyEn}`.toLowerCase().includes(q),
+    );
 
   // Batches in creation order, unassigned last.
   const groups: { batch: Batch | null; deals: DealSummary[] }[] = [
@@ -107,6 +117,8 @@ export default function DealList({
         <span className="mt-2 block text-xs text-neutral-500">{t(T.homeInternalWarning)}</span>
       </p>
 
+      <ActionCenter deals={deals} />
+
       <Dashboard deals={deals} />
 
       <div className="mb-6 flex flex-wrap items-center gap-2">
@@ -127,6 +139,14 @@ export default function DealList({
             {t(showArchived ? T.hideArchived : T.showArchived)} ({archivedCount})
           </button>
         )}
+
+        <input
+          type="search"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder={lang === "ko" ? "회사 검색…" : "Search companies…"}
+          className="ml-auto w-full max-w-[14rem] rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm transition-colors focus:border-neutral-500 focus:outline-none dark:border-neutral-700 dark:bg-neutral-950"
+        />
       </div>
 
       {adding && (
@@ -147,7 +167,11 @@ export default function DealList({
 
       {visible.length === 0 && !adding && (
         <p className="rounded-xl border border-dashed border-neutral-300 px-6 py-10 text-center text-sm text-neutral-500 dark:border-neutral-700">
-          {t(T.noCompanies)}
+          {q
+            ? lang === "ko"
+              ? `"${query}"에 해당하는 회사가 없습니다.`
+              : `No companies match "${query}".`
+            : t(T.noCompanies)}
         </p>
       )}
 

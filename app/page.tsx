@@ -2,6 +2,7 @@ import { auth } from "@/auth";
 import { getRegistry } from "@/lib/deals-store";
 import { collectDealStatus } from "@/lib/deal-status";
 import { readDiligence } from "@/lib/diligence-store";
+import { readExecution } from "@/lib/execution-store";
 import { allDiligenceItems } from "@/lib/diligence";
 import DealList, { type DealSummary } from "./deal-list";
 import CompanySidebar from "./company-sidebar";
@@ -22,9 +23,10 @@ export default async function Home() {
    */
   const deals: DealSummary[] = await Promise.all(
     registry.deals.map(async (deal) => {
-      const [status, diligence] = await Promise.all([
+      const [status, diligence, execution] = await Promise.all([
         collectDealStatus(deal).catch(() => null),
         readDiligence(deal.id).catch(() => null),
+        readExecution(deal.id).catch(() => null),
       ]);
 
       const checkedCount = diligence
@@ -43,6 +45,7 @@ export default async function Home() {
         totalRequired: status?.totalRequired ?? null,
         uncheckedCount: totalChecks - checkedCount,
         totalChecks,
+        paymentDate: execution?.paymentDate || null,
       };
     }),
   );
