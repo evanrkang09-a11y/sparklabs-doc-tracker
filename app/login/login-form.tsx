@@ -19,36 +19,44 @@ export default function LoginForm({
 
   return (
     <div className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center px-6 py-16">
-      <div className="mb-8 text-center">
-        <p className="text-sm font-medium tracking-wide text-neutral-500 uppercase">
+      <div className="mb-8 flex flex-col items-center text-center">
+        <span
+          aria-hidden
+          className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-600 text-lg font-bold text-white shadow-sm"
+        >
+          S
+        </span>
+        <p className="text-xs font-medium tracking-wide text-neutral-500 uppercase">
           {t(T.org)}
         </p>
         <h1 className="mt-1 text-2xl font-semibold tracking-tight">{t(T.appName)}</h1>
         <p className="mt-1 text-sm text-neutral-500">{t(T.internalOnly)}</p>
       </div>
 
-      {error && (
-        <p className="mb-4 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
-          {t(error === "AccessDenied" ? T.signInRefused : T.signInError)}
+      <div className="rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+        {error && (
+          <p className="mb-4 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+            {t(error === "AccessDenied" ? T.signInRefused : T.signInError)}
+          </p>
+        )}
+
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => {
+            setBusy(true);
+            signIn("google", { callbackUrl: next || "/" });
+          }}
+          className="flex w-full items-center justify-center gap-3 rounded-lg border border-neutral-300 bg-white px-4 py-3 text-sm font-medium text-neutral-900 transition-all hover:bg-neutral-50 hover:shadow-sm active:scale-[0.99] disabled:opacity-60 dark:border-neutral-700 dark:bg-neutral-950 dark:text-white dark:hover:bg-neutral-800"
+        >
+          <GoogleMark />
+          {busy ? "…" : t(T.signInWithGoogle)}
+        </button>
+
+        <p className="mt-4 text-center text-sm text-neutral-600 dark:text-neutral-400">
+          <span className="font-mono">@{domain}</span> {t(T.signInDomainNote)}
         </p>
-      )}
-
-      <button
-        type="button"
-        disabled={busy}
-        onClick={() => {
-          setBusy(true);
-          signIn("google", { callbackUrl: next || "/" });
-        }}
-        className="flex w-full items-center justify-center gap-3 rounded-lg border border-neutral-300 bg-white px-4 py-3 text-sm font-medium text-neutral-900 transition-colors hover:bg-neutral-50 disabled:opacity-60 dark:border-neutral-700 dark:bg-neutral-900 dark:text-white dark:hover:bg-neutral-800"
-      >
-        <GoogleMark />
-        {busy ? "…" : t(T.signInWithGoogle)}
-      </button>
-
-      <p className="mt-4 text-center text-sm text-neutral-600 dark:text-neutral-400">
-        <span className="font-mono">@{domain}</span> {t(T.signInDomainNote)}
-      </p>
+      </div>
 
       <p className="mt-6 text-center text-xs text-neutral-400">{t(T.signInNoPassword)}</p>
 

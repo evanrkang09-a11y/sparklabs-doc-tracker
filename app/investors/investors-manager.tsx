@@ -109,7 +109,7 @@ export default function InvestorsManager({
         {profiles.map((profile) => (
           <li
             key={profile.id}
-            className="rounded-xl border border-neutral-200 dark:border-neutral-800"
+            className="rounded-xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-900"
           >
             <div className="flex items-center justify-between gap-3 px-4 py-3">
               <button
@@ -168,7 +168,7 @@ export default function InvestorsManager({
           <button
             type="button"
             onClick={() => setCreating(true)}
-            className="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white dark:bg-white dark:text-neutral-900"
+            className="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white shadow-sm transition-all hover:bg-neutral-800 hover:shadow active:scale-[0.98] dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-100"
           >
             + {ko ? "새 프로필" : "New profile"}
           </button>

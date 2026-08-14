@@ -97,14 +97,14 @@ export default function DealList({
 
   return (
     <>
-      <header className="mb-6">
+      <header className="mb-5">
         <h1 className="text-3xl font-semibold tracking-tight">{t(T.appName)}</h1>
         <p className="mt-1 text-neutral-500">{t(T.appTagline)}</p>
       </header>
 
-      <p className="mb-6 text-sm text-neutral-600 dark:text-neutral-400">
+      <p className="mb-6 rounded-xl border border-neutral-200 bg-white px-4 py-3 text-sm text-neutral-600 shadow-sm dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-400">
         {t(T.homeIntro)}
-        <span className="mt-2 block text-neutral-500">{t(T.homeInternalWarning)}</span>
+        <span className="mt-2 block text-xs text-neutral-500">{t(T.homeInternalWarning)}</span>
       </p>
 
       <Dashboard deals={deals} />
@@ -113,9 +113,9 @@ export default function DealList({
         <button
           type="button"
           onClick={() => setAdding((open) => !open)}
-          className="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white dark:bg-white dark:text-neutral-900"
+          className="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white shadow-sm transition-all hover:bg-neutral-800 hover:shadow active:scale-[0.98] dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-100"
         >
-          {adding ? t(T.cancel) : t(T.addCompany)}
+          {adding ? t(T.cancel) : `+ ${t(T.addCompany)}`}
         </button>
 
         {archivedCount > 0 && (
@@ -180,7 +180,7 @@ export default function DealList({
           {groupDeals.length === 0 ? (
             <p className="py-3 text-xs text-neutral-400">—</p>
           ) : (
-            <ul className="divide-y divide-neutral-200 dark:divide-neutral-800">
+            <ul className="space-y-2.5">
               {groupDeals.map((deal) => (
                 <DealRow
                   key={deal.id}
@@ -213,7 +213,11 @@ function DealRow({
   const [name, otherName] = both(deal.companyKo, deal.companyEn);
 
   return (
-    <li className={`py-3 ${deal.archived ? "opacity-55" : ""}`}>
+    <li
+      className={`rounded-xl border border-neutral-200 bg-white px-4 py-3 shadow-sm transition-shadow hover:shadow-md dark:border-neutral-800 dark:bg-neutral-900 ${
+        deal.archived ? "opacity-55" : ""
+      }`}
+    >
       <div className="flex items-start justify-between gap-4">
         <Link
           href={`/deal/${deal.id}`}
@@ -241,7 +245,7 @@ function DealRow({
         <div className="flex shrink-0 flex-col items-end gap-1">
           <Link
             href={`/diligence/${deal.id}`}
-            className="rounded-lg border border-neutral-300 px-2.5 py-1 text-xs transition-colors hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-900"
+            className="rounded-lg border border-neutral-300 px-2.5 py-1 text-xs font-medium transition-colors hover:border-indigo-400 hover:text-indigo-600 dark:border-neutral-700 dark:hover:border-indigo-500 dark:hover:text-indigo-400"
           >
             {t(T.tabDiligence)}
           </Link>
@@ -277,7 +281,11 @@ function Badge({ tone, children }: { tone: "good" | "warn" | "muted"; children: 
     muted: "bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400",
   }[tone];
 
-  return <span className={`rounded px-1.5 py-0.5 text-xs ${styles}`}>{children}</span>;
+  return (
+    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${styles}`}>
+      {children}
+    </span>
+  );
 }
 
 function DocsBadge({ deal }: { deal: DealSummary }) {

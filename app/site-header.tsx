@@ -34,15 +34,23 @@ export default function SiteHeader({
   const company = companyKo && companyEn ? pick(companyKo, companyEn) : undefined;
 
   return (
-    <header className="sticky top-0 z-10 border-b border-neutral-200 bg-white/85 backdrop-blur dark:border-neutral-800 dark:bg-neutral-950/85">
-      <div className="mx-auto flex max-w-3xl items-center justify-between gap-4 px-6 py-3">
-        <Link href="/" className="min-w-0 transition-opacity hover:opacity-70">
-          <p className="text-xs font-medium tracking-wide text-neutral-500 uppercase">
-            {t(T.org)}
-          </p>
-          <p className="truncate text-sm font-semibold">
-            {company ?? t(T.appName)}
-          </p>
+    <header className="sticky top-0 z-10 border-b border-neutral-200 bg-white/80 shadow-sm backdrop-blur-md dark:border-neutral-800 dark:bg-neutral-950/80">
+      <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-6 py-3">
+        <Link href="/" className="flex min-w-0 items-center gap-2.5 transition-opacity hover:opacity-70">
+          <span
+            aria-hidden
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-indigo-600 text-sm font-bold text-white"
+          >
+            S
+          </span>
+          <span className="min-w-0">
+            <span className="block text-[10px] font-medium tracking-wide text-neutral-500 uppercase">
+              {t(T.org)}
+            </span>
+            <span className="block truncate text-sm font-semibold">
+              {company ?? t(T.appName)}
+            </span>
+          </span>
         </Link>
 
         <div className="flex shrink-0 items-center gap-2">
@@ -91,7 +99,7 @@ export default function SiteHeader({
       </div>
 
       {dealId && (
-        <nav className="mx-auto flex max-w-3xl gap-1 px-6">
+        <nav className="mx-auto flex max-w-5xl gap-1 px-6">
           {/* The order the work actually happens in: collect, assess, contract. */}
           <Tab href={`/deal/${dealId}`} active={!onDiligence && !onAgreement}>
             {t(T.tabDocuments)}
@@ -126,7 +134,7 @@ function Tab({
       aria-current={active ? "page" : undefined}
       className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium transition-colors ${
         active
-          ? "border-neutral-900 text-neutral-900 dark:border-white dark:text-white"
+          ? "border-indigo-600 text-indigo-600 dark:border-indigo-400 dark:text-indigo-400"
           : "border-transparent text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"
       }`}
     >

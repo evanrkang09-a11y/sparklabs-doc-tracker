@@ -30,7 +30,9 @@ export default function Dashboard({ deals }: { deals: DealSummary[] }) {
 
   return (
     <section className="mb-8">
-      <h2 className="mb-3 text-sm font-semibold text-neutral-500">{t(T.overview)}</h2>
+      <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-neutral-400">
+        {t(T.overview)}
+      </h2>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Tile label={t(T.companiesTracked)} value={active.length} />
@@ -51,7 +53,7 @@ export default function Dashboard({ deals }: { deals: DealSummary[] }) {
           return (
             <li
               key={deal.id}
-              className="grid grid-cols-1 items-center gap-2 rounded-lg border border-neutral-200 px-3 py-2 sm:grid-cols-[10rem_1fr_1fr] sm:gap-4 dark:border-neutral-800"
+              className="grid grid-cols-1 items-center gap-2 rounded-xl border border-neutral-200 bg-white px-4 py-2.5 shadow-sm transition-shadow hover:shadow-md sm:grid-cols-[10rem_1fr_1fr] sm:gap-4 dark:border-neutral-800 dark:bg-neutral-900"
             >
               <span className="truncate text-sm font-medium">{name}</span>
               <Meter
@@ -82,15 +84,17 @@ function Tile({
   tone?: "good" | "warn" | "muted";
 }) {
   const accent = {
-    good: "text-emerald-700 dark:text-emerald-400",
-    warn: "text-amber-700 dark:text-amber-500",
+    good: "text-emerald-600 dark:text-emerald-400",
+    warn: "text-amber-600 dark:text-amber-500",
     muted: "text-neutral-900 dark:text-neutral-100",
   }[tone];
 
   return (
-    <div className="rounded-lg border border-neutral-200 px-3 py-2.5 dark:border-neutral-800">
-      <p className="truncate text-xs text-neutral-500">{label}</p>
-      <p className={`mt-0.5 text-xl font-semibold ${accent}`}>{value}</p>
+    <div className="rounded-xl border border-neutral-200 bg-white px-4 py-3 shadow-sm transition-shadow hover:shadow-md dark:border-neutral-800 dark:bg-neutral-900">
+      <p className="truncate text-[11px] font-medium uppercase tracking-wide text-neutral-400">
+        {label}
+      </p>
+      <p className={`mt-1 text-2xl font-semibold tabular-nums ${accent}`}>{value}</p>
     </div>
   );
 }

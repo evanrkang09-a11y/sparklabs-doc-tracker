@@ -83,7 +83,7 @@ export default function AddCompanyForm({
   return (
     <form
       onSubmit={submit}
-      className="mb-8 rounded-xl border border-neutral-200 p-5 dark:border-neutral-800"
+      className="mb-8 rounded-xl border border-neutral-200 bg-white p-5 shadow-sm dark:border-neutral-800 dark:bg-neutral-900"
     >
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
@@ -208,7 +208,7 @@ export default function AddCompanyForm({
         <button
           type="submit"
           disabled={busy || (!companyKo.trim() && !companyEn.trim())}
-          className="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-white dark:text-neutral-900"
+          className="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white shadow-sm transition-all hover:bg-neutral-800 hover:shadow active:scale-[0.98] disabled:opacity-50 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-100"
         >
           {busy ? t(T.saving2) : t(T.addCompany)}
         </button>
