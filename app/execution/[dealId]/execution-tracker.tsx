@@ -18,6 +18,7 @@ import type { ExecutionRecord, NumberSet } from "@/lib/execution-store";
 import { describe } from "@/lib/errors";
 import { useLang } from "@/app/lang-provider";
 import EmailDrafts from "./email-drafts";
+import HandoffSummary from "./handoff-summary";
 
 /**
  * 투자 집행: the two stages after the contract is signed — instructing the
@@ -312,6 +313,13 @@ export default function ExecutionTracker({
         oiDocs={oiDocs}
         postDocs={postDocs}
         deadlines={deadlines}
+      />
+
+      {/* Handoff summary + Drive filing convention, from the post-payment list */}
+      <HandoffSummary
+        deal={deal}
+        postDocs={postDocs}
+        postChecks={record.postChecks}
       />
     </div>
   );
