@@ -217,7 +217,6 @@ const CHECK_SCHEMA = {
           source: { type: "string" },
         },
         required: ["labelKo", "labelEn", "value", "source"],
-        additionalProperties: false,
       },
     },
     issuesKo: { type: "array", items: { type: "string" } },
@@ -236,7 +235,6 @@ const CHECK_SCHEMA = {
     "instructionsKo",
     "instructionsEn",
   ],
-  additionalProperties: false,
 } as const;
 
 const CHECK_SYSTEM = `You assist a Korean venture capital firm with pre-investment document due diligence.
@@ -351,12 +349,10 @@ const EXTRA_SCHEMA = {
           whyEn: { type: "string" },
         },
         required: ["titleKo", "titleEn", "whyKo", "whyEn"],
-        additionalProperties: false,
       },
     },
   },
   required: ["checks"],
-  additionalProperties: false,
 } as const;
 
 const EXTRA_SYSTEM = `You assist a Korean venture capital firm with pre-investment due diligence.

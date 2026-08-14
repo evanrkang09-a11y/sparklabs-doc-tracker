@@ -85,7 +85,6 @@ const SUGGEST_SCHEMA = {
     "issuePrice",
     "totalAmount",
   ],
-  additionalProperties: false,
 } as const;
 
 const SUGGEST_SYSTEM = `You assist a Korean venture capital firm filling in an investment agreement.

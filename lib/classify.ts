@@ -64,12 +64,10 @@ const SCHEMA = {
           reason: { type: "string" },
         },
         required: ["filename", "documentId", "confidence", "reason"],
-        additionalProperties: false,
       },
     },
   },
   required: ["guesses"],
-  additionalProperties: false,
 } as const;
 
 export async function classifyFilenames(
