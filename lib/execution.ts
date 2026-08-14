@@ -40,6 +40,14 @@ export const INVESTMENT_STRUCTURES: {
   { value: "safe", ko: "조건부지분인수계약 (SAFE)", en: "SAFE" },
 ];
 
+/**
+ * Where a returned document must go after collection (from #6-D):
+ *  - "custodian": passed via 경영지원본부 to the 수탁은행 for the share deposit
+ *  - "internal": kept in SparkLabs' own file
+ * Left undefined where the source document doesn't route it explicitly.
+ */
+export type DocDestination = "custodian" | "internal";
+
 export type ExecutionDoc = {
   id: string;
   nameKo: string;
@@ -47,6 +55,12 @@ export type ExecutionDoc = {
   /** Format requirement, e.g. 날인본 / 원본. */
   noteKo?: string;
   noteEn?: string;
+  destination?: DocDestination;
+};
+
+export const DESTINATION_LABEL: Record<DocDestination, { ko: string; en: string }> = {
+  custodian: { ko: "수탁은행", en: "Custodian bank" },
+  internal: { ko: "내부보관", en: "Internal" },
 };
 
 // ---------------------------------------------------------------------------
@@ -89,11 +103,11 @@ const OI_OVERSEAS: ExecutionDoc[] = [
 // ---------------------------------------------------------------------------
 
 const POST_NEWSHARES_DOMESTIC: ExecutionDoc[] = [
-  { id: "post-unissued-cert", nameKo: "주식미발행확인서", nameEn: "Certificate of unissued shares", noteKo: "원본", noteEn: "Original" },
-  { id: "post-shareholder-registry", nameKo: "주주명부", nameEn: "Shareholder registry", noteKo: "원본", noteEn: "Original" },
-  { id: "post-corporate-seal", nameKo: "법인 인감증명서", nameEn: "Corporate seal certificate", noteKo: "원본", noteEn: "Original" },
-  { id: "post-corporate-registry", nameKo: "법인 등기부등본", nameEn: "Corporate registry extract", noteKo: "원본", noteEn: "Original" },
-  { id: "post-balance-cert", nameKo: "통장 잔액증명서", nameEn: "Bank balance certificate", noteKo: "사본 또는 원본", noteEn: "Copy or original" },
+  { id: "post-unissued-cert", nameKo: "주식미발행확인서", nameEn: "Certificate of unissued shares", noteKo: "원본", noteEn: "Original", destination: "custodian" },
+  { id: "post-shareholder-registry", nameKo: "주주명부", nameEn: "Shareholder registry", noteKo: "원본", noteEn: "Original", destination: "custodian" },
+  { id: "post-corporate-seal", nameKo: "법인 인감증명서", nameEn: "Corporate seal certificate", noteKo: "원본", noteEn: "Original", destination: "custodian" },
+  { id: "post-corporate-registry", nameKo: "법인 등기부등본", nameEn: "Corporate registry extract", noteKo: "원본", noteEn: "Original", destination: "custodian" },
+  { id: "post-balance-cert", nameKo: "통장 잔액증명서", nameEn: "Bank balance certificate", noteKo: "사본 또는 원본 · 내부보관", noteEn: "Copy or original · kept internally", destination: "internal" },
 ];
 
 const POST_NEWSHARES_OVERSEAS: ExecutionDoc[] = [
@@ -105,10 +119,10 @@ const POST_NEWSHARES_OVERSEAS: ExecutionDoc[] = [
 ];
 
 const POST_SAFE_DOMESTIC: ExecutionDoc[] = [
-  { id: "post-receipt", nameKo: "투자금 수령 영수증", nameEn: "Receipt of investment", noteKo: "원본", noteEn: "Original" },
-  { id: "post-corporate-seal", nameKo: "법인 인감증명서", nameEn: "Corporate seal certificate", noteKo: "원본", noteEn: "Original" },
+  { id: "post-receipt", nameKo: "투자금 수령 영수증", nameEn: "Receipt of investment", noteKo: "원본 · 주식미발행확인서 대신", noteEn: "Original · replaces the unissued-shares certificate", destination: "custodian" },
+  { id: "post-corporate-seal", nameKo: "법인 인감증명서", nameEn: "Corporate seal certificate", noteKo: "원본", noteEn: "Original", destination: "custodian" },
   { id: "post-business-reg", nameKo: "사업자등록증", nameEn: "Business registration certificate", noteKo: "사본", noteEn: "Copy" },
-  { id: "post-balance-cert", nameKo: "통장 잔액증명서", nameEn: "Bank balance certificate", noteKo: "사본 또는 원본", noteEn: "Copy or original" },
+  { id: "post-balance-cert", nameKo: "통장 잔액증명서", nameEn: "Bank balance certificate", noteKo: "사본 또는 원본", noteEn: "Copy or original", destination: "internal" },
   { id: "post-cap-table", nameKo: "투자 후 Cap Table", nameEn: "Post-investment cap table", noteKo: "투자금액·주식종류 포함 엑셀", noteEn: "Excel incl. amount and share class" },
 ];
 

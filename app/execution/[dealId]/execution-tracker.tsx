@@ -3,18 +3,21 @@
 import { useMemo, useRef, useState } from "react";
 import type { Deal } from "@/lib/deals";
 import {
+  DESTINATION_LABEL,
   FUND_TYPES,
   INVESTMENT_STRUCTURES,
   fundTypeAllowed,
   operatingInstructionDocs,
   postPaymentDeadlines,
   postPaymentDocs,
+  type ExecutionDoc,
   type FundType,
   type InvestmentStructure,
 } from "@/lib/execution";
 import type { ExecutionRecord, NumberSet } from "@/lib/execution-store";
 import { describe } from "@/lib/errors";
 import { useLang } from "@/app/lang-provider";
+import EmailDrafts from "./email-drafts";
 
 /**
  * 투자 집행: the two stages after the contract is signed — instructing the
@@ -28,11 +31,14 @@ export default function ExecutionTracker({
   deal,
   initial,
   agreementNumbers,
+  fundName,
 }: {
   deal: Deal;
   initial: ExecutionRecord;
   /** The three figures the signed contract fixes, to cross-check against. */
   agreementNumbers: NumberSet;
+  /** The fund name from the agreement, used to fill the email drafts. */
+  fundName: string;
 }) {
   const { lang, pick } = useLang();
   const ko = lang === "ko";
@@ -293,6 +299,20 @@ export default function ExecutionTracker({
             : "💡 Overseas: after payment, email the securities acquisition report and the FX remittance receipt/wire message the custodian bank returns to the Bank of Korea."}
         </p>
       )}
+
+      {/* Email drafts, generated from the config above */}
+      <EmailDrafts
+        deal={deal}
+        fundName={fundName}
+        fundType={effectiveFundType}
+        structure={record.structure}
+        instructionDate={record.instructionDate}
+        paymentDate={record.paymentDate}
+        agreementNumbers={agreementNumbers}
+        oiDocs={oiDocs}
+        postDocs={postDocs}
+        deadlines={deadlines}
+      />
     </div>
   );
 }
@@ -394,7 +414,7 @@ function ChecklistSection({
   done: number;
   total: number;
   empty: string | null;
-  docs: { id: string; nameKo: string; nameEn: string; noteKo?: string; noteEn?: string }[];
+  docs: ExecutionDoc[];
   checks: Record<string, boolean>;
   onToggle: (id: string) => void;
   ko: boolean;
@@ -442,6 +462,20 @@ function ChecklistSection({
                       <span className="block text-[10px] text-neutral-400">{note}</span>
                     )}
                   </span>
+                  {doc.destination && (
+                    <span
+                      className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium ${
+                        doc.destination === "custodian"
+                          ? "bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300"
+                          : "bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400"
+                      }`}
+                    >
+                      {pick(
+                        DESTINATION_LABEL[doc.destination].ko,
+                        DESTINATION_LABEL[doc.destination].en,
+                      )}
+                    </span>
+                  )}
                 </button>
               </li>
             );
