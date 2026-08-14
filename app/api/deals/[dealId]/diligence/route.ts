@@ -52,7 +52,7 @@ export async function PATCH(
     return Response.json({ error: "Body must be JSON" }, { status: 400 });
   }
 
-  const { checkId, checked, note } = (body ?? {}) as Record<string, unknown>;
+  const { checkId, checked, note, verifiedAt } = (body ?? {}) as Record<string, unknown>;
 
   if (typeof checkId !== "string" || !isKnownCheckId(checkId)) {
     return Response.json({ error: "Unknown checklist item" }, { status: 400 });
@@ -66,5 +66,9 @@ export async function PATCH(
     return Response.json({ error: "'note' must be a string" }, { status: 400 });
   }
 
-  return respond(() => saveDiligenceEdit(dealId, { checkId, checked, note }));
+  if (verifiedAt !== undefined && typeof verifiedAt !== "string") {
+    return Response.json({ error: "'verifiedAt' must be a string" }, { status: 400 });
+  }
+
+  return respond(() => saveDiligenceEdit(dealId, { checkId, checked, note, verifiedAt: verifiedAt as string | undefined }));
 }

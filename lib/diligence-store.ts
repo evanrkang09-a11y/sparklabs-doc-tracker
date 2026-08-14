@@ -26,6 +26,8 @@ export type CheckState = {
   note: string;
   /** When this individual check was last touched. */
   updatedAt: string;
+  /** Date the analyst recorded for when this item was verified (free-text, e.g. "2026-08-14"). */
+  verifiedAt?: string;
 };
 
 export type DiligenceRecord = {
@@ -38,6 +40,7 @@ export type CheckEdit = {
   checkId: string;
   checked?: boolean;
   note?: string;
+  verifiedAt?: string;
 };
 
 /** Memos are for a sentence or two of context, not for pasting a document in. */
@@ -82,6 +85,7 @@ export async function saveDiligenceEdit(
     checked: edit.checked ?? existing?.checked ?? false,
     note: (edit.note ?? existing?.note ?? "").slice(0, MAX_NOTE_LENGTH),
     updatedAt: new Date().toISOString(),
+    verifiedAt: (edit.verifiedAt ?? existing?.verifiedAt ?? "").slice(0, 20),
   };
 
   await put(pathFor(dealId), JSON.stringify(record, null, 2), {
@@ -125,6 +129,7 @@ function sanitize(dealId: string, raw: unknown): DiligenceRecord {
       checked: state.checked === true,
       note: typeof state.note === "string" ? state.note.slice(0, MAX_NOTE_LENGTH) : "",
       updatedAt: typeof state.updatedAt === "string" ? state.updatedAt : "",
+      verifiedAt: typeof state.verifiedAt === "string" ? state.verifiedAt.slice(0, 20) : "",
     };
   }
 

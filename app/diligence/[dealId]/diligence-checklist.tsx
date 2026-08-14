@@ -45,7 +45,7 @@ type Section = {
 /** Long enough not to save on every keystroke, short enough not to lose a thought. */
 const NOTE_SAVE_DELAY_MS = 800;
 
-const EMPTY: CheckState = { checked: false, note: "", updatedAt: "" };
+const EMPTY: CheckState = { checked: false, note: "", updatedAt: "", verifiedAt: "" };
 
 export default function DiligenceChecklist({
   deal,
@@ -92,7 +92,7 @@ export default function DiligenceChecklist({
     return () => timers.forEach(clearTimeout);
   }, []);
 
-  async function save(checkId: string, patch: { checked?: boolean; note?: string }) {
+  async function save(checkId: string, patch: { checked?: boolean; note?: string; verifiedAt?: string }) {
     setSaving((count) => count + 1);
     setSaveError(null);
 
@@ -138,6 +138,25 @@ export default function DiligenceChecklist({
       setTimeout(() => {
         noteTimers.current.delete(item.id);
         save(item.id, { note });
+      }, NOTE_SAVE_DELAY_MS),
+    );
+  }
+
+  function editVerifiedAt(item: Item, verifiedAt: string) {
+    setChecks((current) => ({
+      ...current,
+      [item.id]: { ...(current[item.id] ?? EMPTY), verifiedAt },
+    }));
+
+    const timerKey = `${item.id}:date`;
+    const pending = noteTimers.current.get(timerKey);
+    if (pending) clearTimeout(pending);
+
+    noteTimers.current.set(
+      timerKey,
+      setTimeout(() => {
+        noteTimers.current.delete(timerKey);
+        save(item.id, { verifiedAt });
       }, NOTE_SAVE_DELAY_MS),
     );
   }
@@ -242,6 +261,70 @@ export default function DiligenceChecklist({
         )}
       </section>
 
+      {/* Item status dashboard */}
+      <section className="mt-4 rounded-xl border border-neutral-200 p-4 dark:border-neutral-800">
+        <h2 className="mb-3 text-sm font-semibold text-neutral-700 dark:text-neutral-300">
+          {ko ? "항목 현황" : "Item status"}
+        </h2>
+        {(() => {
+          let globalIdx = 0;
+          return sections.map((section) => (
+            <div key={section.id} className="mb-3 last:mb-0">
+              <p className="mb-2 text-xs font-medium text-neutral-400 uppercase tracking-wide">
+                {ko ? section.titleKo : section.titleEn}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {section.items.map((item) => {
+                  globalIdx += 1;
+                  const idx = globalIdx;
+                  const state = checks[item.id];
+                  const isChecked = state?.checked === true;
+                  const hasRelated = item.relatedDocuments.length > 0;
+                  const anySubmitted = item.relatedDocuments.some((d) => d.submitted);
+                  const isBlocked = hasRelated && !anySubmitted;
+
+                  const color = isChecked
+                    ? "bg-green-500 hover:bg-green-600"
+                    : isBlocked
+                      ? "bg-neutral-400 hover:bg-neutral-500"
+                      : "bg-red-500 hover:bg-red-600";
+
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() =>
+                        document
+                          .getElementById(`check-${item.id}`)
+                          ?.scrollIntoView({ behavior: "smooth", block: "center" })
+                      }
+                      title={ko ? item.titleKo : item.titleEn}
+                      className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold text-white transition-colors ${color}`}
+                    >
+                      {idx}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ));
+        })()}
+        <div className="mt-3 flex gap-5 border-t border-neutral-100 pt-3 dark:border-neutral-800">
+          <span className="flex items-center gap-1.5 text-xs text-neutral-500">
+            <span className="h-2.5 w-2.5 rounded-full bg-green-500" />
+            {ko ? "완료" : "Done"}
+          </span>
+          <span className="flex items-center gap-1.5 text-xs text-neutral-500">
+            <span className="h-2.5 w-2.5 rounded-full bg-red-500" />
+            {ko ? "미완료" : "To do"}
+          </span>
+          <span className="flex items-center gap-1.5 text-xs text-neutral-500">
+            <span className="h-2.5 w-2.5 rounded-full bg-neutral-400" />
+            {ko ? "서류 미제출" : "Docs missing"}
+          </span>
+        </div>
+      </section>
+
       {/* AI analysis */}
       <section className="mt-4 rounded-xl border border-neutral-200 p-4 dark:border-neutral-800">
         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -306,6 +389,7 @@ export default function DiligenceChecklist({
               return (
                 <li
                   key={item.id}
+                  id={`check-${item.id}`}
                   className={`rounded-xl border p-5 transition-colors ${
                     state.checked
                       ? "border-emerald-300 bg-emerald-50/50 dark:border-emerald-900 dark:bg-emerald-950/20"
@@ -371,6 +455,19 @@ export default function DiligenceChecklist({
                     analysis={analysis.checks[item.id]}
                     newestUploadAt={newestUploadAt}
                   />
+
+                  <div className="mt-3 ml-8 flex items-center gap-2">
+                    <label className="shrink-0 text-xs text-neutral-400">
+                      {ko ? "확인일" : "Verified"}
+                    </label>
+                    <input
+                      type="text"
+                      value={state.verifiedAt ?? ""}
+                      onChange={(e) => editVerifiedAt(item, e.target.value)}
+                      placeholder="YYYY-MM-DD"
+                      className="w-28 rounded border border-neutral-200 bg-white px-2 py-1 text-xs placeholder:text-neutral-400 focus:border-neutral-400 focus:outline-none dark:border-neutral-700 dark:bg-neutral-950"
+                    />
+                  </div>
 
                   <textarea
                     value={state.note}
