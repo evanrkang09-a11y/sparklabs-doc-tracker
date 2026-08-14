@@ -4,6 +4,7 @@ import { collectDealStatus } from "@/lib/deal-status";
 import { readDiligence } from "@/lib/diligence-store";
 import { allDiligenceItems } from "@/lib/diligence";
 import DealList, { type DealSummary } from "./deal-list";
+import CompanySidebar from "./company-sidebar";
 import SiteHeader from "./site-header";
 
 export default async function Home() {
@@ -49,9 +50,12 @@ export default async function Home() {
   return (
     <>
       <SiteHeader userEmail={session?.user?.email} />
-      <main className="mx-auto w-full max-w-3xl px-6 py-10">
-        <DealList deals={deals} batches={registry.batches} />
-      </main>
+      <div className="flex">
+        <CompanySidebar deals={deals} />
+        <main className="min-w-0 flex-1 px-8 py-10">
+          <DealList deals={deals} batches={registry.batches} />
+        </main>
+      </div>
     </>
   );
 }

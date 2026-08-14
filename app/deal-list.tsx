@@ -3,12 +3,11 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { matchesBatch, type Batch, type Deal } from "@/lib/deals";
+import { type Batch, type Deal } from "@/lib/deals";
 import { T } from "@/lib/i18n";
 import { describe } from "@/lib/errors";
 import { useLang } from "./lang-provider";
 import AddCompanyForm from "./add-company-form";
-import CompanySidebar from "./company-sidebar";
 import Dashboard from "./dashboard";
 
 export type DealSummary = Pick<
@@ -43,32 +42,21 @@ export default function DealList({
 
   const [adding, setAdding] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
-  const [selectedBatch, setSelectedBatch] = useState<string | null>(null);
-  const [selectedStage, setSelectedStage] = useState<DealStage | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const archivedCount = deals.filter((deal) => deal.archived).length;
 
-  const visible = deals
-    .filter((deal) => showArchived || !deal.archived)
-    .filter((deal) => matchesBatch(deal, selectedBatch))
-    .filter((deal) => selectedStage === null || stageOf(deal) === selectedStage);
+  const visible = deals.filter((deal) => showArchived || !deal.archived);
 
-  // Batches in creation order, then anything unassigned last - an unassigned
-  // pile at the top would push the real groupings down the page. When the
-  // sidebar has narrowed to one batch, the headings stop earning their space.
-  const showHeadings = selectedBatch === null;
-
-  const groups: { batch: Batch | null; deals: DealSummary[] }[] = showHeadings
-    ? [
-        ...batches.map((batch) => ({
-          batch,
-          deals: visible.filter((deal) => deal.batchId === batch.id),
-        })),
-        { batch: null, deals: visible.filter((deal) => !deal.batchId) },
-      ].filter((group) => group.deals.length > 0 || group.batch !== null)
-    : [{ batch: null, deals: visible }];
+  // Batches in creation order, unassigned last.
+  const groups: { batch: Batch | null; deals: DealSummary[] }[] = [
+    ...batches.map((batch) => ({
+      batch,
+      deals: visible.filter((deal) => deal.batchId === batch.id),
+    })),
+    { batch: null, deals: visible.filter((deal) => !deal.batchId) },
+  ].filter((group) => group.deals.length > 0);
 
   async function act(dealId: string, run: () => Promise<Response>) {
     setBusyId(dealId);
@@ -121,20 +109,6 @@ export default function DealList({
 
       <Dashboard deals={deals} />
 
-      {/* Sidebar left, list right. Stacks on narrow screens - the sidebar
-          becomes a scrollable strip of batches rather than vanishing. */}
-      <div className="lg:grid lg:grid-cols-[13rem_1fr] lg:gap-8">
-        <CompanySidebar
-          deals={deals}
-          batches={batches}
-          selectedBatch={selectedBatch}
-          selectedStage={selectedStage}
-          showArchived={showArchived}
-          onSelectBatch={setSelectedBatch}
-          onSelectStage={setSelectedStage}
-        />
-
-        <div className="min-w-0">
       <div className="mb-6 flex flex-wrap items-center gap-2">
         <button
           type="button"
@@ -179,7 +153,7 @@ export default function DealList({
 
       {groups.map(({ batch, deals: groupDeals }) => (
         <section key={batch?.id ?? "unassigned"} className="mb-8">
-          {showHeadings && (
+          {batch !== undefined && (
             <div className="mb-2 flex items-baseline justify-between gap-3 border-b border-neutral-200 pb-1.5 dark:border-neutral-800">
               <h2 className="text-sm font-semibold">
                 {batch ? batch.name : t(T.unassigned)}
@@ -220,8 +194,6 @@ export default function DealList({
           )}
         </section>
       ))}
-        </div>
-      </div>
     </>
   );
 }

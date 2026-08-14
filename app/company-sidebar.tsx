@@ -1,174 +1,57 @@
 "use client";
 
 import Link from "next/link";
-import { matchesBatch, UNASSIGNED_BATCH, type Batch } from "@/lib/deals";
-import { type DealStage, type DealSummary, stageOf } from "./deal-list";
-import { T } from "@/lib/i18n";
+import type { DealSummary } from "./deal-list";
 import { useLang } from "./lang-provider";
 
 /**
- * Batch and company navigation down the left.
- *
- * Selecting a batch filters the main list rather than navigating - the point is
- * to move between batches quickly, and a page load per click would defeat that.
- * Company entries do navigate, straight to that company's documents.
- *
- * Collapses to a horizontal strip on narrow screens instead of disappearing, so
- * the batches are still reachable on a laptop or a phone.
+ * Far-left navigation listing every active company with direct links to
+ * its three feature areas: document tracking, due diligence, and agreement.
  */
-export default function CompanySidebar({
-  deals,
-  batches,
-  selectedBatch,
-  selectedStage,
-  showArchived,
-  onSelectBatch,
-  onSelectStage,
-}: {
-  deals: DealSummary[];
-  batches: Batch[];
-  selectedBatch: string | null;
-  selectedStage: DealStage | null;
-  /** Kept in step with the list - otherwise the two panes show different sets. */
-  showArchived: boolean;
-  onSelectBatch: (batchId: string | null) => void;
-  onSelectStage: (stage: DealStage | null) => void;
-}) {
-  const { t, both } = useLang();
-
-  const active = deals.filter((deal) => showArchived || !deal.archived);
-  const countIn = (batchId: string | null) =>
-    active.filter((deal) => deal.batchId === batchId).length;
-  const countAtStage = (stage: DealStage) =>
-    active.filter((deal) => stageOf(deal) === stage).length;
-
-  const unassigned = countIn(null);
+export default function CompanySidebar({ deals }: { deals: DealSummary[] }) {
+  const { both } = useLang();
+  const active = deals.filter((d) => !d.archived);
 
   return (
-    <nav className="lg:sticky lg:top-24 lg:self-start">
-      <p className="mb-2 text-xs font-semibold text-neutral-500">{t(T.batchLabel)}</p>
-
-      <ul className="mb-5 flex gap-1.5 overflow-x-auto pb-1 lg:flex-col lg:overflow-visible lg:pb-0">
-        <li className="shrink-0 lg:shrink">
-          <BatchButton
-            label={t(T.allCompanies)}
-            count={active.length}
-            selected={selectedBatch === null}
-            onClick={() => onSelectBatch(null)}
-          />
-        </li>
-
-        {batches.map((batch) => (
-          <li key={batch.id} className="shrink-0 lg:shrink">
-            <BatchButton
-              label={batch.name}
-              count={countIn(batch.id)}
-              selected={selectedBatch === batch.id}
-              onClick={() => onSelectBatch(batch.id)}
-            />
-          </li>
-        ))}
-
-        {unassigned > 0 && (
-          <li className="shrink-0 lg:shrink">
-            <BatchButton
-              label={t(T.unassigned)}
-              count={unassigned}
-              selected={selectedBatch === UNASSIGNED_BATCH}
-              onClick={() => onSelectBatch(UNASSIGNED_BATCH)}
-            />
-          </li>
-        )}
-      </ul>
-
-      <p className="mb-2 text-xs font-semibold text-neutral-500">{t(T.stageLabel)}</p>
-
-      <ul className="mb-5 flex gap-1.5 overflow-x-auto pb-1 lg:flex-col lg:overflow-visible lg:pb-0">
-        <li className="shrink-0 lg:shrink">
-          <BatchButton
-            label={t(T.stageAll)}
-            count={active.length}
-            selected={selectedStage === null}
-            onClick={() => onSelectStage(null)}
-          />
-        </li>
-        {(
-          [
-            ["collecting", t(T.stageCollecting)],
-            ["diligence", t(T.stageDiligence)],
-            ["ready", t(T.stageReady)],
-          ] as [DealStage, string][]
-        ).map(([stage, label]) => (
-          <li key={stage} className="shrink-0 lg:shrink">
-            <BatchButton
-              label={label}
-              count={countAtStage(stage)}
-              selected={selectedStage === stage}
-              onClick={() => onSelectStage(selectedStage === stage ? null : stage)}
-            />
-          </li>
-        ))}
-      </ul>
-
-      <p className="mb-2 text-xs font-semibold text-neutral-500">
-        {t(T.companiesTracked)}
+    <nav className="sticky top-16 h-[calc(100vh-4rem)] w-44 shrink-0 overflow-y-auto border-r border-neutral-200 px-3 py-5 dark:border-neutral-800">
+      <p className="mb-3 px-1 text-[10px] font-semibold uppercase tracking-wider text-neutral-400">
+        Companies
       </p>
 
-      <ul className="hidden space-y-0.5 lg:block">
-        {active
-          .filter((deal) => matchesBatch(deal, selectedBatch))
-          .map((deal) => {
-            const [name] = both(deal.companyKo, deal.companyEn);
-            const settled = deal.missingCount === 0 && deal.uncheckedCount === 0;
+      {active.length === 0 && (
+        <p className="px-1 text-xs text-neutral-400">No companies yet</p>
+      )}
 
-            return (
-              <li key={deal.id}>
-                <Link
-                  href={`/deal/${deal.id}`}
-                  className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800"
-                >
-                  <span
-                    aria-hidden
-                    className={`h-1.5 w-1.5 shrink-0 rounded-full ${
-                      settled ? "bg-emerald-500" : "bg-amber-500"
-                    }`}
-                  />
-                  <span className="truncate">{name}</span>
-                </Link>
-              </li>
-            );
-          })}
+      <ul className="space-y-4">
+        {active.map((deal) => {
+          const [name] = both(deal.companyKo, deal.companyEn);
+          return (
+            <li key={deal.id}>
+              <p className="truncate px-1 text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                {name}
+              </p>
+              <ul className="mt-0.5 space-y-0.5">
+                <SidebarLink href={`/deal/${deal.id}`} label="Tracking" />
+                <SidebarLink href={`/diligence/${deal.id}`} label="DD" />
+                <SidebarLink href={`/agreement/${deal.id}`} label="Agreement" />
+              </ul>
+            </li>
+          );
+        })}
       </ul>
     </nav>
   );
 }
 
-function BatchButton({
-  label,
-  count,
-  selected,
-  onClick,
-}: {
-  label: string;
-  count: number;
-  selected: boolean;
-  onClick: () => void;
-}) {
+function SidebarLink({ href, label }: { href: string; label: string }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-current={selected ? "true" : undefined}
-      className={`flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm whitespace-nowrap transition-colors ${
-        selected
-          ? "bg-neutral-900 text-white dark:bg-white dark:text-neutral-900"
-          : "hover:bg-neutral-100 dark:hover:bg-neutral-800"
-      }`}
-    >
-      <span className="truncate">{label}</span>
-      <span className={selected ? "text-xs opacity-70" : "text-xs text-neutral-400"}>
-        {count}
-      </span>
-    </button>
+    <li>
+      <Link
+        href={href}
+        className="block rounded px-2 py-0.5 text-xs text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-800 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-200"
+      >
+        {label}
+      </Link>
+    </li>
   );
 }

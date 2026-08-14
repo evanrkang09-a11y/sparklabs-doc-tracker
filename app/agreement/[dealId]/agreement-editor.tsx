@@ -3,11 +3,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Deal } from "@/lib/deals";
 import {
-  AGREEMENT_GROUPS,
+  ALL_FIELDS,
   departsFromStandard,
   FIELD_BY_TOKEN,
   missingFields,
   tokenValues,
+  type AgreementField,
   type AgreementValues,
 } from "@/lib/agreement-fields";
 import type { FieldSuggestions } from "@/lib/agreement-suggest";
@@ -17,6 +18,15 @@ import { T } from "@/lib/i18n";
 import { describe } from "@/lib/errors";
 import { useLang } from "@/app/lang-provider";
 import ContractView, { type ActiveSlot } from "./contract-view";
+
+/** Year/month/day sub-fields that are collapsed into their group's date input. */
+const DATE_HEADS = new Set(["signYear", "paymentYear", "closingYear", "financialsYear"]);
+const DATE_SUBS = new Set([
+  "signMonth", "signDay",
+  "paymentMonth", "paymentDay",
+  "closingMonth", "closingDay",
+  "financialsMonth", "financialsDay",
+]);
 
 /** Four date triplets collapsed into single YYYY-MM-DD inputs. */
 const DATE_GROUPS = [
@@ -177,6 +187,36 @@ export default function AgreementEditor({
     walk(layout.blocks);
     return map;
   }, [layout]);
+
+  /**
+   * Fields ordered by first appearance in the contract (document order), so
+   * the sidebar reads top-to-bottom just like the contract does.
+   *
+   * Date sub-fields (month/day) are excluded here — they're rendered as part
+   * of their group's aggregated date input.
+   */
+  const sortedFields = useMemo<AgreementField[]>(() => {
+    const seen = new Set<string>();
+    const result: AgreementField[] = [];
+
+    for (const fieldId of slotsByField.keys()) {
+      if (!seen.has(fieldId) && !DATE_SUBS.has(fieldId)) {
+        seen.add(fieldId);
+        const field = ALL_FIELDS.find((f) => f.id === fieldId);
+        if (field) result.push(field);
+      }
+    }
+
+    // Append anything not in the template (e.g. words/copy fields with no slot).
+    for (const field of ALL_FIELDS) {
+      if (!seen.has(field.id) && !DATE_SUBS.has(field.id)) {
+        result.push(field);
+        seen.add(field.id);
+      }
+    }
+
+    return result;
+  }, [slotsByField]);
 
   /** What to show in a slot nobody has filled yet. */
   const slotLabel = useMemo(
@@ -450,148 +490,133 @@ export default function AgreementEditor({
             </p>
           )}
 
-          {AGREEMENT_GROUPS.map((group) => (
-            <section key={group.id} className="mb-5">
-              <h2 className="mb-2 border-b border-neutral-200 pb-1 text-xs font-semibold dark:border-neutral-800">
-                {pick(group.titleKo, group.titleEn)}
-              </h2>
+          <div className="space-y-2.5">
+            {sortedFields.map((field) => {
+              // Date group head — render a single YYYY-MM-DD input.
+              if (DATE_HEADS.has(field.id)) {
+                const dg = DATE_GROUPS.find((g) => g.yearId === field.id)!;
+                const derived = derivedDate(dg);
+                const displayValue = dateDrafts[dg.id] ?? derived;
+                return (
+                  <div key={field.id}>
+                    <label
+                      className="block text-[11px] font-medium text-neutral-500"
+                      htmlFor={dg.id}
+                    >
+                      {pick(dg.labelKo, dg.labelEn)}
+                    </label>
+                    <input
+                      id={dg.id}
+                      ref={(node) => {
+                        if (node) {
+                          fieldRefs.current.set(dg.yearId, node);
+                          fieldRefs.current.set(dg.monthId, node);
+                          fieldRefs.current.set(dg.dayId, node);
+                        }
+                      }}
+                      value={displayValue}
+                      placeholder="YYYY-MM-DD"
+                      onFocus={() => {
+                        setDateDrafts((prev) => ({ ...prev, [dg.id]: derived }));
+                        locate(dg.yearId);
+                      }}
+                      onBlur={() => {
+                        setDateDrafts((prev) => {
+                          const next = { ...prev };
+                          delete next[dg.id];
+                          return next;
+                        });
+                        setActive(null);
+                      }}
+                      onChange={(e) => {
+                        const raw = e.target.value;
+                        setDateDrafts((prev) => ({ ...prev, [dg.id]: raw }));
+                        const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+                        if (match) {
+                          const [, year, month, day] = match;
+                          setValues((prev) => ({
+                            ...prev,
+                            [dg.yearId]: year,
+                            [dg.monthId]: String(parseInt(month, 10)),
+                            [dg.dayId]: String(parseInt(day, 10)),
+                          }));
+                        }
+                      }}
+                      className={`${input} placeholder:text-neutral-400 dark:placeholder:text-neutral-600`}
+                    />
+                    <p className="mt-0.5 text-[10px] text-neutral-400">
+                      {lang === "ko" ? dg.hintKo : dg.hintEn}
+                    </p>
+                  </div>
+                );
+              }
 
-              <div className="space-y-2.5">
-                {group.id === "dates"
-                  ? DATE_GROUPS.map((dg) => {
-                      const derived = derivedDate(dg);
-                      const displayValue = dateDrafts[dg.id] ?? derived;
-                      return (
-                        <div key={dg.id}>
-                          <label
-                            className="block text-[11px] font-medium text-neutral-500"
-                            htmlFor={dg.id}
-                          >
-                            {pick(dg.labelKo, dg.labelEn)}
-                          </label>
-                          <input
-                            id={dg.id}
-                            ref={(node) => {
-                              if (node) {
-                                fieldRefs.current.set(dg.yearId, node);
-                                fieldRefs.current.set(dg.monthId, node);
-                                fieldRefs.current.set(dg.dayId, node);
-                              }
-                            }}
-                            value={displayValue}
-                            placeholder="YYYY-MM-DD"
-                            onFocus={() => {
-                              setDateDrafts((prev) => ({ ...prev, [dg.id]: derived }));
-                              locate(dg.yearId);
-                            }}
-                            onBlur={() => {
-                              setDateDrafts((prev) => {
-                                const next = { ...prev };
-                                delete next[dg.id];
-                                return next;
-                              });
-                              setActive(null);
-                            }}
-                            onChange={(e) => {
-                              const raw = e.target.value;
-                              setDateDrafts((prev) => ({ ...prev, [dg.id]: raw }));
-                              const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-                              if (match) {
-                                const [, year, month, day] = match;
-                                setValues((prev) => ({
-                                  ...prev,
-                                  [dg.yearId]: year,
-                                  [dg.monthId]: String(parseInt(month, 10)),
-                                  [dg.dayId]: String(parseInt(day, 10)),
-                                }));
-                              }
-                            }}
-                            className={`${input} placeholder:text-neutral-400 dark:placeholder:text-neutral-600`}
-                          />
-                          <p className="mt-0.5 text-[10px] text-neutral-400">
-                            {lang === "ko" ? dg.hintKo : dg.hintEn}
-                          </p>
-                        </div>
-                      );
-                    })
-                  : group.fields.map((field) => {
-                      const value = values[field.id] ?? "";
-                      const off =
-                        field.standard && field.default && value.trim() !== field.default;
-                      const slots = slotsByField.get(field.id)?.length ?? 0;
+              // Normal field.
+              const value = values[field.id] ?? "";
+              const off =
+                field.standard && field.default && value.trim() !== field.default;
+              const slots = slotsByField.get(field.id)?.length ?? 0;
+              const suggestion = suggestions[field.id];
+              const hasSuggestion = suggestion && !value.trim();
 
-                      const suggestion = suggestions[field.id];
-                      const hasSuggestion = suggestion && !value.trim();
+              return (
+                <div key={field.id}>
+                  <label
+                    className="block text-[11px] font-medium text-neutral-500"
+                    htmlFor={field.id}
+                  >
+                    {pick(field.labelKo, field.labelEn)}
+                    {field.standard && (
+                      <span className="ml-1 text-neutral-400">({field.default})</span>
+                    )}
+                    {slots > 1 && (
+                      <span className="ml-1 text-neutral-400">×{slots}</span>
+                    )}
+                    {hasSuggestion && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setValues((current) => ({ ...current, [field.id]: suggestion }))
+                        }
+                        className="ml-1.5 rounded bg-sky-100 px-1 py-0.5 text-[10px] font-normal text-sky-700 transition-colors hover:bg-sky-200 dark:bg-sky-950 dark:text-sky-300"
+                      >
+                        {t(T.aiSuggestApply)}
+                      </button>
+                    )}
+                  </label>
 
-                      return (
-                        <div key={field.id}>
-                          <label
-                            className="block text-[11px] font-medium text-neutral-500"
-                            htmlFor={field.id}
-                          >
-                            {pick(field.labelKo, field.labelEn)}
-                            {field.standard && (
-                              <span className="ml-1 text-neutral-400">
-                                ({field.default})
-                              </span>
-                            )}
-                            {/* Numbers only, so it needs no translation. Says the
-                                value lands in more than one clause. */}
-                            {slots > 1 && (
-                              <span className="ml-1 text-neutral-400">×{slots}</span>
-                            )}
-                            {hasSuggestion && (
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setValues((current) => ({
-                                    ...current,
-                                    [field.id]: suggestion,
-                                  }))
-                                }
-                                className="ml-1.5 rounded bg-sky-100 px-1 py-0.5 text-[10px] font-normal text-sky-700 transition-colors hover:bg-sky-200 dark:bg-sky-950 dark:text-sky-300"
-                              >
-                                {t(T.aiSuggestApply)}
-                              </button>
-                            )}
-                          </label>
+                  <input
+                    id={field.id}
+                    ref={(node) => {
+                      if (node) fieldRefs.current.set(field.id, node);
+                    }}
+                    value={value}
+                    placeholder={suggestion ?? undefined}
+                    onFocus={() => locate(field.id)}
+                    onBlur={() => setActive(null)}
+                    inputMode={
+                      field.kind === "text" || field.kind === "words" ? "text" : "numeric"
+                    }
+                    onChange={(event) =>
+                      setValues((current) => ({
+                        ...current,
+                        [field.id]: event.target.value,
+                      }))
+                    }
+                    className={`${input} placeholder:text-neutral-400 dark:placeholder:text-neutral-600 ${
+                      off ? "border-amber-400 dark:border-amber-700" : ""
+                    }`}
+                  />
 
-                          <input
-                            id={field.id}
-                            ref={(node) => {
-                              if (node) fieldRefs.current.set(field.id, node);
-                            }}
-                            value={value}
-                            placeholder={suggestion ?? undefined}
-                            onFocus={() => locate(field.id)}
-                            onBlur={() => setActive(null)}
-                            inputMode={
-                              field.kind === "text" || field.kind === "words"
-                                ? "text"
-                                : "numeric"
-                            }
-                            onChange={(event) =>
-                              setValues((current) => ({
-                                ...current,
-                                [field.id]: event.target.value,
-                              }))
-                            }
-                            className={`${input} placeholder:text-neutral-400 dark:placeholder:text-neutral-600 ${
-                              off ? "border-amber-400 dark:border-amber-700" : ""
-                            }`}
-                          />
-
-                          {(field.hintKo || field.hintEn) && (
-                            <p className="mt-0.5 text-[10px] text-neutral-400">
-                              {lang === "ko" ? field.hintKo : field.hintEn}
-                            </p>
-                          )}
-                        </div>
-                      );
-                    })}
-              </div>
-            </section>
-          ))}
+                  {(field.hintKo || field.hintEn) && (
+                    <p className="mt-0.5 text-[10px] text-neutral-400">
+                      {lang === "ko" ? field.hintKo : field.hintEn}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </aside>
       </div>
     </div>
