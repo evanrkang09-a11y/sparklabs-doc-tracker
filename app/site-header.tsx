@@ -74,10 +74,10 @@ export default function SiteHeader({
           </Link>
 
           <Link
-            href="/reference"
+            href="/assistant"
             className="rounded-lg px-2.5 py-1.5 text-sm text-neutral-600 transition-colors hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800"
           >
-            {lang === "ko" ? "참고자료" : "Reference"}
+            {lang === "ko" ? "도우미" : "Assistant"}
           </Link>
 
           <button

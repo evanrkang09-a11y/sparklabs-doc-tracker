@@ -89,6 +89,58 @@ export async function callOpenRouter(
   return parsed as Record<string, unknown>;
 }
 
+export type ChatTurn = { role: "user" | "model"; text: string };
+
+/**
+ * Plain-text chat call, for the process assistant.
+ *
+ * Unlike callOpenRouter this asks for free text rather than a JSON object, and
+ * carries a short conversation so follow-up questions have context. Same key,
+ * same model, same one-door-to-the-model principle.
+ */
+export async function askGeminiText(options: {
+  system: string;
+  messages: ChatTurn[];
+  maxTokens?: number;
+}): Promise<string> {
+  const key = readEnv("GOOGLE_AI_API_KEY");
+  if (!key) throw new Error(MISSING_KEY_MESSAGE);
+
+  const model = activeModel();
+  const url = `${ENDPOINT_BASE}/${model}:generateContent?key=${key}`;
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      systemInstruction: { parts: [{ text: options.system }] },
+      contents: options.messages.map((turn) => ({
+        role: turn.role,
+        parts: [{ text: turn.text }],
+      })),
+      generationConfig: {
+        maxOutputTokens: options.maxTokens ?? 1024,
+        temperature: 0.2,
+      },
+    }),
+  });
+
+  const body = await response.json();
+
+  if (!response.ok || body?.error) {
+    const msg =
+      typeof body?.error?.message === "string"
+        ? body.error.message
+        : `HTTP ${response.status}`;
+    throw new Error(msg);
+  }
+
+  const text: string = body?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+  const trimmed = text.trim();
+  if (!trimmed) throw new Error("모델이 빈 응답을 반환했습니다.");
+  return trimmed;
+}
+
 /**
  * Converts the content parts used by the old OpenRouter calls into the
  * Gemini API's parts format.
