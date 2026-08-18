@@ -153,6 +153,20 @@ export default function AgreementEditor({
     return () => window.removeEventListener("beforeunload", warn);
   }, [dirty]);
 
+  // Temp-save: a contract is rarely filled in one sitting, so persist quietly a
+  // short while after edits stop. The manual Save button still works; this just
+  // means closing the tab mid-draft doesn't lose anything.
+  useEffect(() => {
+    if (!dirty || saving) return;
+    const timer = setTimeout(() => {
+      void save();
+    }, 1500);
+    return () => clearTimeout(timer);
+    // save reads the latest values from its closure; re-running on values change
+    // is what makes the autosave pick them up.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [values, dirty]);
+
   const replacements = useMemo(() => tokenValues(values), [values]);
   const missing = useMemo(() => missingFields(values), [values]);
   const changedStandards = useMemo(() => departsFromStandard(values), [values]);

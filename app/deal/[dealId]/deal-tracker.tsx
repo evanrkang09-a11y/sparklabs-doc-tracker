@@ -40,7 +40,13 @@ type StatusResponse = {
 
 const REFRESH_MS = 5000;
 
-export default function DealTracker({ deal }: { deal: Deal }) {
+export default function DealTracker({
+  deal,
+  driveUrl,
+}: {
+  deal: Deal;
+  driveUrl: string | null;
+}) {
   const { lang, t, pick, both } = useLang();
 
   const [data, setData] = useState<StatusResponse | null>(null);
@@ -167,15 +173,33 @@ export default function DealTracker({ deal }: { deal: Deal }) {
 
   return (
     <main className="mx-auto w-full max-w-3xl px-6 py-10">
-      <header className="mb-8">
-        <p className="text-sm font-medium tracking-wide text-neutral-500 uppercase">
-          {t(T.preInvestmentDocs)}
-        </p>
-        <h1 className="mt-1 text-3xl font-semibold tracking-tight">{companyName}</h1>
-        <p className="mt-1 text-neutral-500">
-          {otherCompanyName} &middot;{" "}
-          {t(deal.market === "overseas" ? T.overseasCompany : T.domesticCompany)}
-        </p>
+      <header className="mb-8 flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <p className="text-sm font-medium tracking-wide text-neutral-500 uppercase">
+            {t(T.preInvestmentDocs)}
+          </p>
+          <h1 className="mt-1 text-3xl font-semibold tracking-tight">{companyName}</h1>
+          <p className="mt-1 text-neutral-500">
+            {otherCompanyName} &middot;{" "}
+            {t(deal.market === "overseas" ? T.overseasCompany : T.domesticCompany)}
+          </p>
+        </div>
+
+        {driveUrl && (
+          <a
+            href={driveUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            title={lang === "ko" ? "실제 파일이 있는 드라이브 열기" : "Open the Drive folder with the actual files"}
+            className="mt-1 flex shrink-0 items-center gap-1.5 rounded-lg border border-neutral-300 px-3 py-1.5 text-xs font-medium transition-colors hover:border-indigo-400 hover:text-indigo-600 dark:border-neutral-700 dark:hover:border-indigo-500 dark:hover:text-indigo-400"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+              <path d="M14 3v4a1 1 0 0 0 1 1h4" />
+              <path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2Z" />
+            </svg>
+            {lang === "ko" ? "드라이브 열기" : "Open Drive"}
+          </a>
+        )}
       </header>
 
       {/* Headline status */}

@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { LangProvider } from "./lang-provider";
 import AssistantWidget from "./assistant-widget";
+import AppFrame from "./app-frame";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -29,7 +30,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="min-h-full flex flex-col">
         <LangProvider>
-          {children}
+          <AppFrame>{children}</AppFrame>
           <AssistantWidget />
         </LangProvider>
       </body>
