@@ -13,7 +13,6 @@ import {
 } from "@/lib/agreement-fields";
 import type { FieldSuggestions } from "@/lib/agreement-suggest";
 import type { AgreementRecord } from "@/lib/agreement-store";
-import type { InvestorProfile } from "@/lib/investors";
 import type { Block, DocxLayout } from "@/lib/docx-layout";
 import { T } from "@/lib/i18n";
 import { describe } from "@/lib/errors";
@@ -109,14 +108,11 @@ export default function AgreementEditor({
   deal,
   layout,
   initial,
-  profiles,
 }: {
   deal: Deal;
   /** The template as drawable blocks, slots still empty. */
   layout: DocxLayout;
   initial: AgreementRecord;
-  /** Saved SparkLabs-side profiles the user can fill the investor block from. */
-  profiles: InvestorProfile[];
 }) {
   const { lang, t, pick } = useLang();
 
@@ -327,14 +323,6 @@ export default function AgreementEditor({
     }
   }
 
-  /** Fills the investor/fund block from a saved profile, overwriting those fields. */
-  function applyProfile(profileId: string) {
-    const profile = profiles.find((p) => p.id === profileId);
-    if (!profile) return;
-
-    setValues((current) => ({ ...current, ...profile.values }));
-  }
-
   /** Applies all suggestions to fields that are still empty. */
   function applyAllSuggestions() {
     setValues((current) => {
@@ -468,36 +456,6 @@ export default function AgreementEditor({
               </p>
             )}
           </div>
-
-          {/* Investor profile picker — fills SparkLabs' side in one click. */}
-          {profiles.length > 0 && (
-            <div className="mb-4">
-              <label
-                htmlFor="investor-profile"
-                className="block text-[11px] font-medium text-neutral-500"
-              >
-                {lang === "ko" ? "투자자 프로필로 채우기" : "Fill from investor profile"}
-              </label>
-              <select
-                id="investor-profile"
-                defaultValue=""
-                onChange={(e) => {
-                  if (e.target.value) applyProfile(e.target.value);
-                  e.target.value = "";
-                }}
-                className="mt-1 w-full rounded-lg border border-neutral-300 bg-white px-2.5 py-1.5 text-sm focus:border-neutral-500 focus:outline-none dark:border-neutral-700 dark:bg-neutral-950"
-              >
-                <option value="" disabled>
-                  {lang === "ko" ? "프로필 선택…" : "Choose a profile…"}
-                </option>
-                {profiles.map((profile) => (
-                  <option key={profile.id} value={profile.id}>
-                    {profile.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
 
           {/* AI suggestion panel */}
           <div className="mb-4 flex flex-wrap items-center gap-2">

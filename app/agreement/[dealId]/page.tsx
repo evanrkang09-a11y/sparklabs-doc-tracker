@@ -4,7 +4,6 @@ import { auth } from "@/auth";
 import { getDeal } from "@/lib/deals-store";
 import { readAgreement } from "@/lib/agreement-store";
 import { templateLayout } from "@/lib/agreement-docx";
-import { listInvestorProfiles } from "@/lib/investors-store";
 import SiteHeader from "@/app/site-header";
 import AgreementEditor from "./agreement-editor";
 
@@ -22,13 +21,12 @@ export default async function AgreementPage({
 
   if (!deal) notFound();
 
-  const [session, record, layout, profiles] = await Promise.all([
+  const [session, record, layout] = await Promise.all([
     auth(),
     readAgreement(dealId),
     // The template's formatting and text, slots still empty. Parsed on the
     // server because the .docx lives on disk; the browser fills the slots live.
     templateLayout(),
-    listInvestorProfiles(),
   ]);
 
   return (
@@ -39,12 +37,7 @@ export default async function AgreementPage({
         companyEn={deal.companyEn}
         userEmail={session?.user?.email}
       />
-      <AgreementEditor
-        deal={deal}
-        layout={layout}
-        initial={record}
-        profiles={profiles}
-      />
+      <AgreementEditor deal={deal} layout={layout} initial={record} />
     </>
   );
 }
