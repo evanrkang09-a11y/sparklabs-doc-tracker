@@ -209,6 +209,37 @@ export default function DiligenceChecklist({
   const complete = doneCount === allItems.length;
   const analysedCount = Object.keys(analysis.checks).length;
 
+  /**
+   * The status of one item's dashboard tile, combining the human checkbox, the
+   * AI's verdict and whether the documents it needs have arrived:
+   *  - done          human checked (AI was fine or silent)
+   *  - done-flagged  human checked despite the AI flagging it (green + red curl)
+   *  - ai-cleared    AI says met, human hasn't ticked it yet (half green/grey)
+   *  - flagged       AI says there are issues, not yet checked (red)
+   *  - blocked       required documents haven't arrived (grey)
+   *  - todo          nothing decisive yet / not analysed (neutral)
+   * A verdict from before the latest upload is treated as unknown, so a stale
+   * "met" can't quietly show green.
+   */
+  function tileStatus(
+    item: Item,
+  ): "done" | "done-flagged" | "ai-cleared" | "flagged" | "blocked" | "todo" {
+    const humanChecked = checks[item.id]?.checked === true;
+    const hasRelated = item.relatedDocuments.length > 0;
+    const anySubmitted = item.relatedDocuments.some((d) => d.submitted);
+    const blocked = hasRelated && !anySubmitted;
+
+    const found = analysis.checks[item.id];
+    const stale = Boolean(found && newestUploadAt && newestUploadAt > found.analyzedAt);
+    const verdict = found && !stale ? found.verdict : undefined;
+
+    if (humanChecked) return verdict === "issues" ? "done-flagged" : "done";
+    if (blocked) return "blocked";
+    if (verdict === "met") return "ai-cleared";
+    if (verdict === "issues") return "flagged";
+    return "todo";
+  }
+
   return (
     <main className="mx-auto w-full max-w-3xl px-6 py-10">
       <header className="mb-8">
@@ -268,60 +299,98 @@ export default function DiligenceChecklist({
         </h2>
         {(() => {
           let globalIdx = 0;
-          return sections.map((section) => (
-            <div key={section.id} className="mb-3 last:mb-0">
-              <p className="mb-2 text-xs font-medium text-neutral-400 uppercase tracking-wide">
-                {ko ? section.titleKo : section.titleEn}
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {section.items.map((item) => {
-                  globalIdx += 1;
-                  const idx = globalIdx;
-                  const state = checks[item.id];
-                  const isChecked = state?.checked === true;
-                  const hasRelated = item.relatedDocuments.length > 0;
-                  const anySubmitted = item.relatedDocuments.some((d) => d.submitted);
-                  const isBlocked = hasRelated && !anySubmitted;
+          return sections.map((section) => {
+            const sectionAbbr = ko
+              ? section.titleKo.replace(/\s/g, "").slice(0, 2)
+              : section.titleEn
+                  .split(/\s+/)
+                  .map((w) => w[0])
+                  .join("")
+                  .slice(0, 3)
+                  .toUpperCase();
 
-                  const color = isChecked
-                    ? "bg-green-500 hover:bg-green-600"
-                    : isBlocked
-                      ? "bg-neutral-400 hover:bg-neutral-500"
-                      : "bg-red-500 hover:bg-red-600";
+            return (
+              <div key={section.id} className="mb-3 last:mb-0">
+                <p className="mb-2 text-xs font-medium text-neutral-400 uppercase tracking-wide">
+                  {ko ? section.titleKo : section.titleEn}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {section.items.map((item) => {
+                    globalIdx += 1;
+                    const idx = globalIdx;
+                    const status = tileStatus(item);
+                    const [itemTitle] = both(item.titleKo, item.titleEn);
+                    const docsText =
+                      item.relatedDocuments.length > 0
+                        ? item.relatedDocuments
+                            .map((d) => pick(d.nameKo, d.nameEn))
+                            .join(", ")
+                        : "—";
 
-                  return (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() =>
-                        document
-                          .getElementById(`check-${item.id}`)
-                          ?.scrollIntoView({ behavior: "smooth", block: "center" })
-                      }
-                      title={ko ? item.titleKo : item.titleEn}
-                      className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold text-white transition-colors ${color}`}
-                    >
-                      {idx}
-                    </button>
-                  );
-                })}
+                    const styles = {
+                      done: "bg-emerald-500 text-white",
+                      "done-flagged": "bg-emerald-500 text-white",
+                      "ai-cleared":
+                        "text-white [background:linear-gradient(135deg,#10b981_50%,#9ca3af_50%)]",
+                      flagged: "bg-red-500 text-white",
+                      blocked: "bg-neutral-400 text-white",
+                      todo: "border border-neutral-300 bg-white text-neutral-600 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300",
+                    }[status];
+
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() =>
+                          document
+                            .getElementById(`check-${item.id}`)
+                            ?.scrollIntoView({ behavior: "smooth", block: "center" })
+                        }
+                        title={ko ? item.titleKo : item.titleEn}
+                        className={`relative flex w-40 flex-col gap-1 overflow-hidden rounded-2xl p-2.5 text-left shadow-sm transition-transform hover:scale-[1.02] ${styles}`}
+                      >
+                        {status === "done-flagged" && (
+                          <span
+                            aria-hidden
+                            className="absolute top-0 right-0 h-0 w-0 border-t-[16px] border-l-[16px] border-t-red-500 border-l-transparent"
+                          />
+                        )}
+                        <span className="text-[10px] font-semibold uppercase opacity-80">
+                          {sectionAbbr} · {idx}
+                        </span>
+                        <span className="line-clamp-2 text-xs leading-tight font-medium">
+                          {itemTitle}
+                        </span>
+                        <span className="line-clamp-2 text-[10px] leading-tight opacity-80">
+                          {docsText}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          ));
+            );
+          });
         })()}
-        <div className="mt-3 flex gap-5 border-t border-neutral-100 pt-3 dark:border-neutral-800">
+
+        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 border-t border-neutral-100 pt-3 dark:border-neutral-800">
+          <LegendDot className="bg-emerald-500" label={ko ? "확인 완료" : "Checked"} />
+          <LegendDot
+            className="[background:linear-gradient(135deg,#10b981_50%,#9ca3af_50%)]"
+            label={ko ? "AI 확인 · 미체크" : "AI cleared, unchecked"}
+          />
+          <LegendDot className="bg-red-500" label={ko ? "AI 미충족" : "AI flagged"} />
+          <LegendDot className="bg-neutral-400" label={ko ? "서류 미제출" : "Docs missing"} />
           <span className="flex items-center gap-1.5 text-xs text-neutral-500">
-            <span className="h-2.5 w-2.5 rounded-full bg-green-500" />
-            {ko ? "완료" : "Done"}
+            <span className="relative h-2.5 w-2.5 rounded-full bg-emerald-500">
+              <span className="absolute top-0 right-0 h-0 w-0 border-t-[6px] border-l-[6px] border-t-red-500 border-l-transparent" />
+            </span>
+            {ko ? "지적 후 확인" : "Checked after flag"}
           </span>
-          <span className="flex items-center gap-1.5 text-xs text-neutral-500">
-            <span className="h-2.5 w-2.5 rounded-full bg-red-500" />
-            {ko ? "미완료" : "To do"}
-          </span>
-          <span className="flex items-center gap-1.5 text-xs text-neutral-500">
-            <span className="h-2.5 w-2.5 rounded-full bg-neutral-400" />
-            {ko ? "서류 미제출" : "Docs missing"}
-          </span>
+          <LegendDot
+            className="border border-neutral-300 bg-white dark:border-neutral-600 dark:bg-neutral-900"
+            label={ko ? "미분석/대기" : "Not analysed"}
+          />
         </div>
       </section>
 
@@ -539,5 +608,14 @@ export default function DiligenceChecklist({
         {t(T.diligenceSource)}
       </footer>
     </main>
+  );
+}
+
+function LegendDot({ className, label }: { className: string; label: string }) {
+  return (
+    <span className="flex items-center gap-1.5 text-xs text-neutral-500">
+      <span className={`h-2.5 w-2.5 rounded-full ${className}`} />
+      {label}
+    </span>
   );
 }

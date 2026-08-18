@@ -32,14 +32,11 @@ export default function ExecutionTracker({
   deal,
   initial,
   agreementNumbers,
-  fundName,
 }: {
   deal: Deal;
   initial: ExecutionRecord;
   /** The three figures the signed contract fixes, to cross-check against. */
   agreementNumbers: NumberSet;
-  /** The fund name from the agreement, used to fill the email drafts. */
-  fundName: string;
 }) {
   const { lang, pick } = useLang();
   const ko = lang === "ko";
@@ -301,16 +298,10 @@ export default function ExecutionTracker({
         </p>
       )}
 
-      {/* Email drafts, generated from the config above */}
+      {/* Post-payment email to the company, generated from the config above */}
       <EmailDrafts
         deal={deal}
-        fundName={fundName}
-        fundType={effectiveFundType}
         structure={record.structure}
-        instructionDate={record.instructionDate}
-        paymentDate={record.paymentDate}
-        agreementNumbers={agreementNumbers}
-        oiDocs={oiDocs}
         postDocs={postDocs}
         deadlines={deadlines}
       />

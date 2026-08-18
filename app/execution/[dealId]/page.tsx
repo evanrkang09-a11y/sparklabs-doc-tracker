@@ -35,10 +35,6 @@ export default async function ExecutionPage({
     amount: agreement.values.totalAmount ?? "",
   };
 
-  // The investing fund's name, for the email drafts.
-  const fundName =
-    agreement.values.fundName || agreement.values.investorName || "";
-
   return (
     <>
       <SiteHeader
@@ -51,7 +47,6 @@ export default async function ExecutionPage({
         deal={deal}
         initial={record}
         agreementNumbers={agreementNumbers}
-        fundName={fundName}
       />
     </>
   );
