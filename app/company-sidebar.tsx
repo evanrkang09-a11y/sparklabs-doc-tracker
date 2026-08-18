@@ -30,7 +30,10 @@ export default function CompanySidebar({ deals }: { deals: DealSummary[] }) {
           const settled = deal.missingCount === 0 && deal.uncheckedCount === 0;
           return (
             <li key={deal.id}>
-              <p className="flex items-center gap-1.5 px-2 text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+              <Link
+                href={`/overview/${deal.id}`}
+                className="flex items-center gap-1.5 px-2 text-xs font-semibold text-neutral-700 transition-colors hover:text-indigo-600 dark:text-neutral-300 dark:hover:text-indigo-400"
+              >
                 <span
                   aria-hidden
                   className={`h-1.5 w-1.5 shrink-0 rounded-full ${
@@ -38,12 +41,13 @@ export default function CompanySidebar({ deals }: { deals: DealSummary[] }) {
                   }`}
                 />
                 <span className="truncate">{name}</span>
-              </p>
+              </Link>
               <ul className="mt-1 space-y-0.5">
                 <SidebarLink href={`/deal/${deal.id}`} label="Tracking" pathname={pathname} />
                 <SidebarLink href={`/diligence/${deal.id}`} label="DD" pathname={pathname} />
                 <SidebarLink href={`/agreement/${deal.id}`} label="Agreement" pathname={pathname} />
                 <SidebarLink href={`/execution/${deal.id}`} label="Execution" pathname={pathname} />
+                <SidebarLink href={`/conversion/${deal.id}`} label="Conversion" pathname={pathname} />
               </ul>
             </li>
           );

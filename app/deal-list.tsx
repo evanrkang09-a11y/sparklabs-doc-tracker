@@ -244,7 +244,7 @@ function DealRow({
     >
       <div className="flex items-start justify-between gap-4">
         <Link
-          href={`/deal/${deal.id}`}
+          href={`/overview/${deal.id}`}
           className="min-w-0 flex-1 transition-opacity hover:opacity-70"
         >
           <p className="flex flex-wrap items-center gap-x-2 font-medium">

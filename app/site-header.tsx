@@ -28,9 +28,12 @@ export default function SiteHeader({
   const { lang, setLang, t, pick } = useLang();
   const pathname = usePathname();
 
+  const onOverview = pathname.startsWith("/overview");
   const onDiligence = pathname.startsWith("/diligence");
   const onAgreement = pathname.startsWith("/agreement");
   const onExecution = pathname.startsWith("/execution");
+  const onConversion = pathname.startsWith("/conversion");
+  const onDocuments = pathname.startsWith("/deal");
   const company = companyKo && companyEn ? pick(companyKo, companyEn) : undefined;
 
   return (
@@ -70,6 +73,13 @@ export default function SiteHeader({
             {t(T.home)}
           </Link>
 
+          <Link
+            href="/reference"
+            className="rounded-lg px-2.5 py-1.5 text-sm text-neutral-600 transition-colors hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800"
+          >
+            {lang === "ko" ? "참고자료" : "Reference"}
+          </Link>
+
           <button
             type="button"
             onClick={() => setLang(lang === "ko" ? "en" : "ko")}
@@ -92,9 +102,12 @@ export default function SiteHeader({
       </div>
 
       {dealId && (
-        <nav className="mx-auto flex max-w-5xl gap-1 px-6">
-          {/* The order the work actually happens in: collect, assess, contract. */}
-          <Tab href={`/deal/${dealId}`} active={!onDiligence && !onAgreement}>
+        <nav className="mx-auto flex max-w-5xl gap-1 overflow-x-auto px-6">
+          {/* The order the work actually happens in: overview, then each stage. */}
+          <Tab href={`/overview/${dealId}`} active={onOverview}>
+            {lang === "ko" ? "개요" : "Overview"}
+          </Tab>
+          <Tab href={`/deal/${dealId}`} active={onDocuments}>
             {t(T.tabDocuments)}
           </Tab>
           <Tab href={`/diligence/${dealId}`} active={onDiligence}>
@@ -105,6 +118,9 @@ export default function SiteHeader({
           </Tab>
           <Tab href={`/execution/${dealId}`} active={onExecution}>
             {lang === "ko" ? "집행" : "Execution"}
+          </Tab>
+          <Tab href={`/conversion/${dealId}`} active={onConversion}>
+            {lang === "ko" ? "전환" : "Conversion"}
           </Tab>
         </nav>
       )}
