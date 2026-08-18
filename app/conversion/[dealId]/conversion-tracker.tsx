@@ -17,6 +17,7 @@ import {
 import type { ConversionRecord } from "@/lib/conversion-store";
 import { describe } from "@/lib/errors";
 import { useLang } from "@/app/lang-provider";
+import StageReviewPanel from "@/app/stage-review-panel";
 
 /**
  * SAFE → equity conversion tracker (#7). Whole-record autosave, like the
@@ -65,6 +66,34 @@ export default function ConversionTracker({
       scheduleSave(next);
       return next;
     });
+  }
+
+  const [aiCalcBusy, setAiCalcBusy] = useState(false);
+  async function aiFillCalc() {
+    setAiCalcBusy(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/deals/${deal.id}/conversion/ai-calc`, {
+        method: "POST",
+      });
+      const parsed = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(parsed?.error ?? `${response.status}`);
+      update({
+        calc: {
+          ...record.calc,
+          method: parsed.method === "cap" || parsed.method === "discount" ? parsed.method : record.calc.method,
+          amount: parsed.amount || record.calc.amount,
+          roundPrice: parsed.roundPrice || record.calc.roundPrice,
+          discountPct: parsed.discountPct || record.calc.discountPct,
+          cap: parsed.cap || record.calc.cap,
+          preShares: parsed.preShares || record.calc.preShares,
+        },
+      });
+    } catch (problem) {
+      setError(describe(problem));
+    } finally {
+      setAiCalcBusy(false);
+    }
   }
 
   const stepsDone = CONVERSION_STEPS.filter((s) => record.stepChecks[s.id]).length;
@@ -184,6 +213,9 @@ export default function ConversionTracker({
         </div>
       )}
 
+      {/* AI stage review */}
+      <StageReviewPanel dealId={deal.id} stage="conversion" />
+
       {/* Process steps */}
       <section className="mb-5 rounded-xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
         <div className="mb-3 flex items-baseline justify-between">
@@ -249,6 +281,8 @@ export default function ConversionTracker({
         calc={record.calc}
         estimate={estimate}
         onChange={(patch) => update({ calc: { ...record.calc, ...patch } })}
+        onAiFill={aiFillCalc}
+        aiBusy={aiCalcBusy}
         ko={ko}
       />
 
@@ -506,11 +540,15 @@ function CalculatorSection({
   calc,
   estimate,
   onChange,
+  onAiFill,
+  aiBusy,
   ko,
 }: {
   calc: ConversionRecord["calc"];
   estimate: { conversionPrice: number | null; shares: number | null };
   onChange: (patch: Partial<ConversionRecord["calc"]>) => void;
+  onAiFill: () => void;
+  aiBusy: boolean;
   ko: boolean;
 }) {
   const field =
@@ -519,13 +557,24 @@ function CalculatorSection({
 
   return (
     <section className="mb-5 rounded-xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
-      <h2 className="mb-1 text-sm font-semibold">
-        {ko ? "전환 주식수 추정" : "Share estimate"}
-      </h2>
+      <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-sm font-semibold">
+          {ko ? "전환 주식수 추정" : "Share estimate"}
+        </h2>
+        <button
+          type="button"
+          onClick={onAiFill}
+          disabled={aiBusy}
+          title={ko ? "업로드된 SAFE·계약서에서 추출" : "Extract from uploaded SAFE / agreements"}
+          className="shrink-0 rounded-lg border border-indigo-300 px-2.5 py-1 text-[11px] font-medium text-indigo-700 transition-colors hover:bg-indigo-50 disabled:opacity-50 dark:border-indigo-800 dark:text-indigo-300 dark:hover:bg-indigo-950/40"
+        >
+          {aiBusy ? (ko ? "추출 중…" : "Reading…") : ko ? "AI로 채우기" : "Fill with AI"}
+        </button>
+      </div>
       <p className="mb-3 text-[11px] text-neutral-400">
         {ko
-          ? "대략적인 참고용 계산입니다. 실제 전환 주식수는 정관·옵션·계약 조건에 따라 달라집니다."
-          : "A rough aid only. The real figure depends on the company's articles, options and contract terms."}
+          ? "대략적인 참고용 계산입니다. 실제 전환 주식수는 정관·옵션·계약 조건에 따라 달라집니다. 'AI로 채우기'는 업로드된 서류에서 값을 추출합니다."
+          : "A rough aid only. The real figure depends on the company's articles, options and contract terms. 'Fill with AI' extracts inputs from uploaded documents."}
       </p>
 
       <div className="mb-3 flex gap-2">

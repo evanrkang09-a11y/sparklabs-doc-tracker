@@ -12,6 +12,57 @@ import { isAiConfigured } from "@/lib/analysis";
 import { MISSING_KEY_MESSAGE } from "@/lib/openrouter";
 import { askGeminiText, type ChatTurn } from "@/lib/openrouter";
 import { PROCESS_KNOWLEDGE } from "@/lib/process-knowledge";
+import { getDeal } from "@/lib/deals-store";
+import { collectDealStatus } from "@/lib/deal-status";
+import { readDiligence } from "@/lib/diligence-store";
+import { readExecution } from "@/lib/execution-store";
+import { readConversion } from "@/lib/conversion-store";
+import { allDiligenceItems } from "@/lib/diligence";
+import { postPaymentDeadlines } from "@/lib/execution";
+
+/**
+ * A compact description of one deal's current state, so the assistant can
+ * answer "what's left for this deal?" specifically. Best-effort - a part that
+ * can't be read is simply omitted.
+ */
+async function dealContext(dealId: string): Promise<string | null> {
+  const deal = await getDeal(dealId);
+  if (!deal) return null;
+
+  const [status, diligence, execution, conversion] = await Promise.all([
+    collectDealStatus(deal).catch(() => null),
+    readDiligence(dealId).catch(() => null),
+    readExecution(dealId).catch(() => null),
+    readConversion(dealId).catch(() => null),
+  ]);
+
+  const lines: string[] = [
+    `Company: ${deal.companyKo} / ${deal.companyEn} (${deal.market})`,
+  ];
+
+  if (status) {
+    lines.push(`Documents: ${status.missingCount} of ${status.totalRequired} required still missing.`);
+  }
+  if (diligence) {
+    const total = allDiligenceItems().length;
+    const done = Object.values(diligence.checks).filter((c) => c.checked).length;
+    lines.push(`Due diligence: ${done}/${total} items checked.`);
+  }
+  if (execution) {
+    lines.push(
+      `Execution: fund type ${execution.fundType ?? "unset"}, structure ${execution.structure ?? "unset"}, payment date ${execution.paymentDate || "unset"}.`,
+    );
+    const dl = postPaymentDeadlines(execution.paymentDate);
+    if (dl) lines.push(`Post-payment hard deadline: ${dl.hard.toISOString().slice(0, 10)}.`);
+  }
+  if (conversion && (conversion.leadPaymentDate || conversion.signingDate)) {
+    lines.push(
+      `SAFE conversion in progress: signing ${conversion.signingDate || "unset"}, follow-on payment ${conversion.leadPaymentDate || "unset"}.`,
+    );
+  }
+
+  return lines.join("\n");
+}
 
 const SYSTEM = `You are the internal process assistant for SparkLabs Korea's investment-operations team.
 
@@ -57,7 +108,8 @@ export async function POST(request: Request) {
     return Response.json({ error: "Body must be JSON" }, { status: 400 });
   }
 
-  const messages = cleanTurns((body as Record<string, unknown>)?.messages);
+  const raw = (body ?? {}) as Record<string, unknown>;
+  const messages = cleanTurns(raw.messages);
 
   if (messages.length === 0 || messages[messages.length - 1].role !== "user") {
     return Response.json(
@@ -66,8 +118,18 @@ export async function POST(request: Request) {
     );
   }
 
+  // If the viewer is on a deal page, fold that deal's live state into the
+  // system prompt so "what's left for this deal?" gets a specific answer.
+  let system = SYSTEM;
+  if (typeof raw.dealId === "string" && raw.dealId) {
+    const context = await dealContext(raw.dealId).catch(() => null);
+    if (context) {
+      system += `\n\n=== CURRENT DEAL CONTEXT (the deal the user is viewing) ===\n${context}\n=== END DEAL CONTEXT ===`;
+    }
+  }
+
   try {
-    const answer = await askGeminiText({ system: SYSTEM, messages, maxTokens: 1024 });
+    const answer = await askGeminiText({ system, messages, maxTokens: 1024 });
     return Response.json({ answer });
   } catch (problem) {
     return Response.json({ error: describe(problem) }, { status: 500 });

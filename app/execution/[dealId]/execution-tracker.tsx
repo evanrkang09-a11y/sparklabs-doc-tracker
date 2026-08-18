@@ -17,6 +17,7 @@ import {
 import type { ExecutionRecord, NumberSet } from "@/lib/execution-store";
 import { describe } from "@/lib/errors";
 import { useLang } from "@/app/lang-provider";
+import StageReviewPanel from "@/app/stage-review-panel";
 import EmailDrafts from "./email-drafts";
 import HandoffSummary from "./handoff-summary";
 
@@ -83,6 +84,29 @@ export default function ExecutionTracker({
     update({ oiChecks: { ...record.oiChecks, [id]: !record.oiChecks[id] } });
   const togglePost = (id: string) =>
     update({ postChecks: { ...record.postChecks, [id]: !record.postChecks[id] } });
+
+  const [aiNumbersBusy, setAiNumbersBusy] = useState(false);
+  async function aiFillNumbers() {
+    setAiNumbersBusy(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/deals/${deal.id}/execution/ai-numbers`, {
+        method: "POST",
+      });
+      const parsed = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(parsed?.error ?? `${response.status}`);
+      update({
+        consistency: {
+          instruction: parsed.instruction ?? record.consistency.instruction,
+          minutes: parsed.minutes ?? record.consistency.minutes,
+        },
+      });
+    } catch (problem) {
+      setError(describe(problem));
+    } finally {
+      setAiNumbersBusy(false);
+    }
+  }
 
   const oiDocs = effectiveFundType
     ? operatingInstructionDocs(deal.market, effectiveFundType)
@@ -227,6 +251,9 @@ export default function ExecutionTracker({
         <DeadlineBanner target={deadlines.target} hard={deadlines.hard} ko={ko} />
       )}
 
+      {/* AI stage review */}
+      <StageReviewPanel dealId={deal.id} stage="execution" />
+
       {/* 운용지시 서류 */}
       <ChecklistSection
         title={ko ? "운용지시 서류" : "Operating instruction documents"}
@@ -263,6 +290,8 @@ export default function ExecutionTracker({
             },
           })
         }
+        onAiFill={aiFillNumbers}
+        aiBusy={aiNumbersBusy}
         ko={ko}
       />
 
@@ -489,6 +518,8 @@ function ConsistencySection({
   agreement,
   consistency,
   onChange,
+  onAiFill,
+  aiBusy,
   ko,
 }: {
   agreement: NumberSet;
@@ -498,6 +529,8 @@ function ConsistencySection({
     field: keyof NumberSet,
     value: string,
   ) => void;
+  onAiFill: () => void;
+  aiBusy: boolean;
   ko: boolean;
 }) {
   const rows: { field: keyof NumberSet; ko: string; en: string }[] = [
@@ -523,13 +556,24 @@ function ConsistencySection({
 
   return (
     <section className="mb-5 rounded-xl border border-neutral-200 p-4 dark:border-neutral-800">
-      <h2 className="mb-1 text-sm font-semibold">
-        {ko ? "숫자 일치 확인" : "Number consistency check"}
-      </h2>
+      <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-sm font-semibold">
+          {ko ? "숫자 일치 확인" : "Number consistency check"}
+        </h2>
+        <button
+          type="button"
+          onClick={onAiFill}
+          disabled={aiBusy}
+          title={ko ? "업로드된 운용지시서·의사록에서 추출" : "Extract from uploaded 운용지시서 / 의사록"}
+          className="shrink-0 rounded-lg border border-indigo-300 px-2.5 py-1 text-[11px] font-medium text-indigo-700 transition-colors hover:bg-indigo-50 disabled:opacity-50 dark:border-indigo-800 dark:text-indigo-300 dark:hover:bg-indigo-950/40"
+        >
+          {aiBusy ? (ko ? "추출 중…" : "Reading…") : ko ? "AI로 채우기" : "Fill with AI"}
+        </button>
+      </div>
       <p className="mb-3 text-[11px] text-neutral-400">
         {ko
-          ? "운용지시서 · 투자계약서 · 투자심의위원회 의사록의 숫자가 일치하는지 확인합니다. 계약서 값은 자동으로 불러옵니다."
-          : "Confirm the figures on the operating instruction, the agreement, and the committee minutes all match. The agreement values are pulled in automatically."}
+          ? "운용지시서 · 투자계약서 · 투자심의위원회 의사록의 숫자가 일치하는지 확인합니다. 계약서 값은 자동으로 불러오며, 'AI로 채우기'는 업로드된 서류에서 나머지를 추출합니다."
+          : "Confirm the figures on the operating instruction, the agreement, and the committee minutes all match. The agreement values load automatically; 'Fill with AI' extracts the rest from uploaded documents."}
       </p>
 
       <div className="overflow-x-auto">

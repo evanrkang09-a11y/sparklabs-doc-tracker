@@ -36,6 +36,15 @@ export default function AssistantWidget() {
   // Not on the login page - the assistant needs a signed-in session anyway.
   if (pathname === "/login") return null;
 
+  // On a deal page the URL is /<section>/<dealId>; pass that id so the
+  // assistant can answer about the specific deal being viewed.
+  const dealSections = ["overview", "deal", "diligence", "agreement", "execution", "conversion"];
+  const segments = pathname.split("/").filter(Boolean);
+  const dealId =
+    segments.length >= 2 && dealSections.includes(segments[0])
+      ? decodeURIComponent(segments[1])
+      : null;
+
   const suggestions = ko
     ? [
         "국내 투자 전 제출 서류 알려줘",
@@ -64,7 +73,7 @@ export default function AssistantWidget() {
       const response = await fetch("/api/assistant", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: next }),
+        body: JSON.stringify({ messages: next, dealId }),
       });
       const parsed = await response.json().catch(() => null);
       if (!response.ok) throw new Error(parsed?.error ?? `${response.status}`);
@@ -88,7 +97,13 @@ export default function AssistantWidget() {
                 {ko ? "프로세스 도우미" : "Process assistant"}
               </p>
               <p className="truncate text-[10px] text-indigo-200">
-                {ko ? "투자 프로세스 질문에 답합니다" : "Answers about the investment process"}
+                {dealId
+                  ? ko
+                    ? `이 딜 정보 참고 중 · ${dealId}`
+                    : `Using this deal · ${dealId}`
+                  : ko
+                    ? "투자 프로세스 질문에 답합니다"
+                    : "Answers about the investment process"}
               </p>
             </div>
             <div className="flex shrink-0 items-center gap-1">
