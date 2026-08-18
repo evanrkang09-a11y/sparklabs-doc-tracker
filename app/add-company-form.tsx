@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { DEAL_TYPES, type Batch, type DealType } from "@/lib/deals";
+import { FUNDS } from "@/lib/funds";
 import type { Market } from "@/lib/documents";
 import { T } from "@/lib/i18n";
 import { describe } from "@/lib/errors";
@@ -23,6 +24,7 @@ export default function AddCompanyForm({
   const [market, setMarket] = useState<Market>("domestic");
   const [dealType, setDealType] = useState<DealType>("general");
   const [batchId, setBatchId] = useState("");
+  const [fundId, setFundId] = useState("");
 
   const [newBatchName, setNewBatchName] = useState("");
   const [addingBatch, setAddingBatch] = useState(false);
@@ -48,7 +50,14 @@ export default function AddCompanyForm({
     setError(null);
 
     try {
-      await post({ companyKo, companyEn, market, dealType, batchId: batchId || null });
+      await post({
+        companyKo,
+        companyEn,
+        market,
+        dealType,
+        batchId: batchId || null,
+        fundId: fundId || null,
+      });
       onDone();
     } catch (problem) {
       setError(describe(problem));
@@ -140,6 +149,25 @@ export default function AddCompanyForm({
             {DEAL_TYPES.map((type) => (
               <option key={type.value} value={type.value}>
                 {lang === "ko" ? type.ko : type.en}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="sm:col-span-2">
+          <label className={label} htmlFor="fund">
+            {lang === "ko" ? "펀드" : "Fund"}
+          </label>
+          <select
+            id="fund"
+            value={fundId}
+            onChange={(event) => setFundId(event.target.value)}
+            className={field}
+          >
+            <option value="">{lang === "ko" ? "미배정" : "Unassigned"}</option>
+            {FUNDS.map((fund) => (
+              <option key={fund.id} value={fund.id}>
+                {fund.name} · {fund.category}
               </option>
             ))}
           </select>

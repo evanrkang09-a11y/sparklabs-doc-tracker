@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type Batch, type Deal } from "@/lib/deals";
+import { FUNDS } from "@/lib/funds";
 import { T } from "@/lib/i18n";
 import { describe } from "@/lib/errors";
 import { useLang } from "./lang-provider";
@@ -13,7 +14,7 @@ import Dashboard from "./dashboard";
 
 export type DealSummary = Pick<
   Deal,
-  "id" | "companyKo" | "companyEn" | "market" | "dealType" | "batchId" | "archived"
+  "id" | "companyKo" | "companyEn" | "market" | "dealType" | "batchId" | "fundId" | "archived"
 > & {
   /** Null when the status couldn't be read - shown as unknown rather than zero. */
   missingCount: number | null;
@@ -91,6 +92,15 @@ export default function DealList({
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ archived }),
+      }),
+    );
+
+  const setFund = (deal: DealSummary, fundId: string) =>
+    act(deal.id, () =>
+      fetch(`/api/companies/${deal.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fundId: fundId || null }),
       }),
     );
 
@@ -212,6 +222,7 @@ export default function DealList({
                   busy={busyId === deal.id}
                   onArchive={() => setArchived(deal, !deal.archived)}
                   onDelete={() => remove(deal)}
+                  onSetFund={(fundId) => setFund(deal, fundId)}
                 />
               ))}
             </ul>
@@ -227,13 +238,15 @@ function DealRow({
   busy,
   onArchive,
   onDelete,
+  onSetFund,
 }: {
   deal: DealSummary;
   busy: boolean;
   onArchive: () => void;
   onDelete: () => void;
+  onSetFund: (fundId: string) => void;
 }) {
-  const { t, both } = useLang();
+  const { t, both, lang } = useLang();
   const [name, otherName] = both(deal.companyKo, deal.companyEn);
 
   return (
@@ -267,6 +280,21 @@ function DealRow({
         </Link>
 
         <div className="flex shrink-0 flex-col items-end gap-1">
+          <select
+            value={deal.fundId ?? ""}
+            onChange={(event) => onSetFund(event.target.value)}
+            disabled={busy}
+            aria-label={lang === "ko" ? "펀드 배정" : "Assign fund"}
+            className="max-w-[8.5rem] rounded-lg border border-neutral-300 bg-white px-2 py-1 text-xs text-neutral-600 focus:border-neutral-500 focus:outline-none disabled:opacity-50 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-300"
+          >
+            <option value="">{lang === "ko" ? "펀드 미배정" : "No fund"}</option>
+            {FUNDS.map((fund) => (
+              <option key={fund.id} value={fund.id}>
+                {fund.name}
+              </option>
+            ))}
+          </select>
+
           <Link
             href={`/diligence/${deal.id}`}
             className="rounded-lg border border-neutral-300 px-2.5 py-1 text-xs font-medium transition-colors hover:border-indigo-400 hover:text-indigo-600 dark:border-neutral-700 dark:hover:border-indigo-500 dark:hover:text-indigo-400"

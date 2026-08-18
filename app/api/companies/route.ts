@@ -55,6 +55,7 @@ export async function POST(request: Request) {
           ? input.dealType
           : "general",
       batchId: typeof input.batchId === "string" && input.batchId ? input.batchId : null,
+      fundId: typeof input.fundId === "string" && input.fundId ? input.fundId : null,
     });
 
     return Response.json(deal);

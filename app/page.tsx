@@ -40,6 +40,7 @@ export default async function Home() {
         market: deal.market,
         dealType: deal.dealType,
         batchId: deal.batchId,
+        fundId: deal.fundId,
         archived: deal.archived,
         missingCount: status?.missingCount ?? null,
         totalRequired: status?.totalRequired ?? null,

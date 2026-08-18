@@ -34,7 +34,7 @@ export async function PATCH(
     return Response.json({ error: "Body must be JSON" }, { status: 400 });
   }
 
-  const { archived, batchId, dealType, market } = (body ?? {}) as Record<string, unknown>;
+  const { archived, batchId, fundId, dealType, market } = (body ?? {}) as Record<string, unknown>;
   const changes: Parameters<typeof updateDeal>[1] = {};
 
   if (archived !== undefined) {
@@ -48,6 +48,12 @@ export async function PATCH(
   // checks for undefined rather than falsiness.
   if (batchId !== undefined) {
     changes.batchId = typeof batchId === "string" && batchId ? batchId : null;
+  }
+
+  // Same shape for the fund: a string assigns it, null/empty unassigns it. The
+  // store drops an id that isn't a known fund.
+  if (fundId !== undefined) {
+    changes.fundId = typeof fundId === "string" && fundId ? fundId : null;
   }
 
   if (dealType !== undefined) {

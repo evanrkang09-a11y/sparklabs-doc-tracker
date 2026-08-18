@@ -36,6 +36,8 @@ export type Deal = {
   dealType: DealType;
   /** Which intake round this company came in on. Null when unassigned. */
   batchId: string | null;
+  /** Which SparkLabs fund is investing (see lib/funds.ts). Null when unassigned. */
+  fundId: string | null;
   /** Archived companies stay readable but drop out of the working list. */
   archived: boolean;
   createdAt: string;
@@ -86,6 +88,7 @@ export const SEED_DEALS: Deal[] = [
     market: "domestic",
     dealType: "batch",
     batchId: null,
+    fundId: null,
     archived: false,
     createdAt: "2026-08-11T00:00:00.000Z",
     readsSampleDriveFolder: false,
@@ -97,6 +100,7 @@ export const SEED_DEALS: Deal[] = [
     market: "overseas",
     dealType: "general",
     batchId: null,
+    fundId: null,
     archived: false,
     createdAt: "2026-08-11T00:00:00.000Z",
   },

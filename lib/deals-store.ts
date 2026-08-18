@@ -15,6 +15,7 @@
 
 import { get, put } from "@vercel/blob";
 import { SEED_DEALS, toDealId, type Batch, type Deal } from "./deals";
+import { isKnownFundId } from "./funds";
 
 const PATH = "config/deals.json";
 
@@ -69,6 +70,7 @@ export type NewDeal = {
   market: Deal["market"];
   dealType: Deal["dealType"];
   batchId: string | null;
+  fundId: string | null;
 };
 
 export async function createDeal(input: NewDeal): Promise<Deal> {
@@ -88,6 +90,7 @@ export async function createDeal(input: NewDeal): Promise<Deal> {
     market: input.market,
     dealType: input.dealType,
     batchId: input.batchId,
+    fundId: isKnownFundId(input.fundId) ? input.fundId : null,
     archived: false,
     createdAt: new Date().toISOString(),
   };
@@ -200,6 +203,8 @@ function sanitize(raw: unknown): Registry {
           // Drop a reference to a batch that no longer exists, rather than
           // rendering a company under a heading that isn't there.
           batchId: deal.batchId && batchIds.has(deal.batchId) ? deal.batchId : null,
+          // Same for the fund - drop an unknown id rather than trust it.
+          fundId: isKnownFundId(deal.fundId) ? deal.fundId : null,
           archived: deal.archived === true,
           createdAt: typeof deal.createdAt === "string" ? deal.createdAt : "",
         }))
