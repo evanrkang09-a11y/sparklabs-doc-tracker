@@ -73,13 +73,6 @@ export default function SiteHeader({
             {t(T.home)}
           </Link>
 
-          <Link
-            href="/assistant"
-            className="rounded-lg px-2.5 py-1.5 text-sm text-neutral-600 transition-colors hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800"
-          >
-            {lang === "ko" ? "도우미" : "Assistant"}
-          </Link>
-
           <button
             type="button"
             onClick={() => setLang(lang === "ko" ? "en" : "ko")}
