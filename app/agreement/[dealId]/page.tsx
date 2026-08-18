@@ -4,6 +4,8 @@ import { auth } from "@/auth";
 import { getDeal } from "@/lib/deals-store";
 import { readAgreement } from "@/lib/agreement-store";
 import { templateLayout } from "@/lib/agreement-docx";
+import { CONTRACT_ORDER, CONTRACTS, type ContractType } from "@/lib/contracts";
+import type { DocxLayout } from "@/lib/docx-layout";
 import SiteHeader from "@/app/site-header";
 import AgreementEditor from "./agreement-editor";
 
@@ -21,13 +23,16 @@ export default async function AgreementPage({
 
   if (!deal) notFound();
 
-  const [session, record, layout] = await Promise.all([
-    auth(),
-    readAgreement(dealId),
-    // The template's formatting and text, slots still empty. Parsed on the
-    // server because the .docx lives on disk; the browser fills the slots live.
-    templateLayout(),
-  ]);
+  const [session, record] = await Promise.all([auth(), readAgreement(dealId)]);
+
+  // Layouts for every ready contract type, so switching type re-renders the
+  // preview without another round trip. Parsed on the server (the .docx lives
+  // on disk); the browser fills the slots live.
+  const readyTypes = CONTRACT_ORDER.filter((type) => CONTRACTS[type].ready);
+  const layoutEntries = await Promise.all(
+    readyTypes.map(async (type) => [type, await templateLayout(type)] as const),
+  );
+  const layouts = Object.fromEntries(layoutEntries) as Record<ContractType, DocxLayout>;
 
   return (
     <>
@@ -37,7 +42,7 @@ export default async function AgreementPage({
         companyEn={deal.companyEn}
         userEmail={session?.user?.email}
       />
-      <AgreementEditor deal={deal} layout={layout} initial={record} />
+      <AgreementEditor deal={deal} layouts={layouts} initial={record} />
     </>
   );
 }

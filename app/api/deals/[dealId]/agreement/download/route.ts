@@ -33,7 +33,7 @@ export async function GET(
 
   try {
     const record = await readAgreement(dealId);
-    const { bytes, unfilled } = await fillAgreement(record.values);
+    const { bytes, unfilled } = await fillAgreement(record.contractType, record.values);
 
     // Company name in the filename, so a folder of these is navigable.
     const stem = `투자계약서_${deal.companyKo || deal.companyEn || dealId}`;

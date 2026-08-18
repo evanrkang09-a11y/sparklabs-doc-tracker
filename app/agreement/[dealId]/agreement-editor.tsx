@@ -2,15 +2,13 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Deal } from "@/lib/deals";
+import { type AgreementField, type AgreementValues } from "@/lib/agreement-fields";
 import {
-  ALL_FIELDS,
-  departsFromStandard,
-  FIELD_BY_TOKEN,
-  missingFields,
-  tokenValues,
-  type AgreementField,
-  type AgreementValues,
-} from "@/lib/agreement-fields";
+  CONTRACT_ORDER,
+  CONTRACTS,
+  getContract,
+  type ContractType,
+} from "@/lib/contracts";
 import type { FieldSuggestions } from "@/lib/agreement-suggest";
 import type { AgreementRecord } from "@/lib/agreement-store";
 import type { Block, DocxLayout } from "@/lib/docx-layout";
@@ -106,21 +104,27 @@ function centreWithin(container: HTMLElement, node: HTMLElement) {
 }
 export default function AgreementEditor({
   deal,
-  layout,
+  layouts,
   initial,
 }: {
   deal: Deal;
-  /** The template as drawable blocks, slots still empty. */
-  layout: DocxLayout;
+  /** The drawable layout per ready contract type, slots still empty. */
+  layouts: Record<ContractType, DocxLayout>;
   initial: AgreementRecord;
 }) {
   const { lang, t, pick } = useLang();
 
+  const [contractType, setContractType] = useState<ContractType>(initial.contractType);
   const [values, setValues] = useState<AgreementValues>(initial.values);
   const [saved, setSaved] = useState<AgreementRecord>(initial);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
+
+  // Everything below reads the active contract's fields, tokens and layout.
+  const contract = getContract(contractType);
+  const spec = contract.spec;
+  const layout = layouts[contractType];
 
   /**
    * Raw text the user is actively typing into a date group input.
@@ -140,8 +144,10 @@ export default function AgreementEditor({
   const fieldRefs = useRef(new Map<string, HTMLElement>());
 
   const dirty = useMemo(
-    () => JSON.stringify(values) !== JSON.stringify(saved.values),
-    [values, saved.values],
+    () =>
+      JSON.stringify(values) !== JSON.stringify(saved.values) ||
+      contractType !== saved.contractType,
+    [values, saved.values, contractType, saved.contractType],
   );
 
   // Warn before losing edits - a half-filled contract is real work.
@@ -165,11 +171,14 @@ export default function AgreementEditor({
     // save reads the latest values from its closure; re-running on values change
     // is what makes the autosave pick them up.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [values, dirty]);
+  }, [values, contractType, dirty]);
 
-  const replacements = useMemo(() => tokenValues(values), [values]);
-  const missing = useMemo(() => missingFields(values), [values]);
-  const changedStandards = useMemo(() => departsFromStandard(values), [values]);
+  const replacements = useMemo(() => spec.tokenValues(values), [spec, values]);
+  const missing = useMemo(() => spec.missingFields(values), [spec, values]);
+  const changedStandards = useMemo(
+    () => spec.departsFromStandard(values),
+    [spec, values],
+  );
 
   /**
    * Each field's slots in the order they appear in the contract.
@@ -190,7 +199,7 @@ export default function AgreementEditor({
         }
 
         for (const run of block.runs) {
-          const field = run.token ? FIELD_BY_TOKEN[run.token] : undefined;
+          const field = run.token ? spec.fieldByToken[run.token] : undefined;
           if (!run.token || !field) continue;
 
           map.set(field.id, [...(map.get(field.id) ?? []), run.token]);
@@ -200,7 +209,7 @@ export default function AgreementEditor({
 
     walk(layout.blocks);
     return map;
-  }, [layout]);
+  }, [layout, spec]);
 
   /**
    * Fields ordered by first appearance in the contract (document order), so
@@ -216,13 +225,13 @@ export default function AgreementEditor({
     for (const fieldId of slotsByField.keys()) {
       if (!seen.has(fieldId) && !DATE_SUBS.has(fieldId)) {
         seen.add(fieldId);
-        const field = ALL_FIELDS.find((f) => f.id === fieldId);
+        const field = spec.allFields.find((f) => f.id === fieldId);
         if (field) result.push(field);
       }
     }
 
     // Append anything not in the template (e.g. words/copy fields with no slot).
-    for (const field of ALL_FIELDS) {
+    for (const field of spec.allFields) {
       if (!seen.has(field.id) && !DATE_SUBS.has(field.id)) {
         result.push(field);
         seen.add(field.id);
@@ -230,15 +239,15 @@ export default function AgreementEditor({
     }
 
     return result;
-  }, [slotsByField]);
+  }, [slotsByField, spec]);
 
   /** What to show in a slot nobody has filled yet. */
   const slotLabel = useMemo(
     () => (token: string) => {
-      const field = FIELD_BY_TOKEN[token];
+      const field = spec.fieldByToken[token];
       return field ? pick(field.labelKo, field.labelEn) : `{{${token}}}`;
     },
-    [pick],
+    [pick, spec],
   );
 
   /** Scrolls the contract to where this field lands, and marks the spot. */
@@ -270,7 +279,7 @@ export default function AgreementEditor({
       const response = await fetch(`/api/deals/${deal.id}/agreement`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ values }),
+        body: JSON.stringify({ values, contractType }),
       });
 
       const parsed = await response.json().catch(() => null);
@@ -354,6 +363,14 @@ export default function AgreementEditor({
     node?.focus();
   }
 
+  /** Switches contract type, seeding that contract's defaults for empty fields. */
+  function switchContract(type: ContractType) {
+    if (type === contractType || !CONTRACTS[type].ready) return;
+    setContractType(type);
+    setValues((current) => ({ ...getContract(type).spec.defaultValues(), ...current }));
+    setActive(null);
+  }
+
   const input =
     "mt-1 w-full rounded-lg border border-neutral-300 bg-white px-2.5 py-1.5 text-sm focus:border-neutral-500 focus:outline-none dark:border-neutral-700 dark:bg-neutral-950";
 
@@ -366,6 +383,40 @@ export default function AgreementEditor({
             {pick(deal.companyKo, deal.companyEn)} · {t(T.agreementTitle)}
           </h1>
           <p className="mt-0.5 text-xs text-neutral-500">{t(T.agreementIntro)}</p>
+
+          {/* Contract type selector */}
+          <div className="mt-2 inline-flex rounded-lg border border-neutral-300 p-0.5 dark:border-neutral-700">
+            {CONTRACT_ORDER.map((type) => {
+              const meta = CONTRACTS[type];
+              const activeType = type === contractType;
+              return (
+                <button
+                  key={type}
+                  type="button"
+                  onClick={() => switchContract(type)}
+                  disabled={!meta.ready}
+                  title={meta.ready ? undefined : lang === "ko" ? "템플릿 준비 중" : "Template not ready yet"}
+                  className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+                    activeType
+                      ? "bg-indigo-600 text-white"
+                      : meta.ready
+                        ? "text-neutral-600 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800"
+                        : "cursor-not-allowed text-neutral-300 dark:text-neutral-600"
+                  }`}
+                >
+                  {pick(meta.labelKo, meta.labelEn)}
+                  {!meta.ready && <span className="ml-1">·{lang === "ko" ? "준비중" : "soon"}</span>}
+                </button>
+              );
+            })}
+          </div>
+          {contractType === "safe" && (
+            <p className="mt-1 text-[11px] text-amber-600 dark:text-amber-500">
+              {lang === "ko"
+                ? "SAFE 계약서는 초안입니다 — 사용 전 멘토 검토 필요"
+                : "SAFE contract is a draft — mentor review required before use"}
+            </p>
+          )}
         </div>
 
         <div className="flex flex-wrap items-center gap-2">

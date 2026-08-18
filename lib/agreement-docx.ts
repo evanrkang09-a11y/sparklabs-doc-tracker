@@ -15,10 +15,15 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { unzipSync, zipSync } from "fflate";
-import { tokenValues, type AgreementValues } from "./agreement-fields";
+import { type AgreementValues } from "./agreement-fields";
+import { getContract, type ContractType } from "./contracts";
 import { readLayout, type DocxLayout } from "./docx-layout";
 
-const TEMPLATE_PATH = path.join(process.cwd(), "templates", "investment-agreement.docx");
+function templatePath(type: ContractType): string {
+  const file = getContract(type).templateFile;
+  if (!file) throw new Error(`No template prepared for contract type: ${type}`);
+  return path.join(process.cwd(), "templates", file);
+}
 
 /** Parts whose text may contain tokens. Headers and footers can quote parties. */
 const TEXT_PARTS = /^word\/(document|header\d*|footer\d*|footnotes|endnotes)\.xml$/;
@@ -46,19 +51,22 @@ function escapeXml(value: string): string {
  * inflating it on every page load and every download is pure waste. Cached as a
  * promise so concurrent requests share one read rather than racing.
  */
-let templateCache: Promise<Record<string, Uint8Array>> | null = null;
+const templateCaches = new Map<ContractType, Promise<Record<string, Uint8Array>>>();
 
-function templateParts(): Promise<Record<string, Uint8Array>> {
-  templateCache ??= readFile(TEMPLATE_PATH)
-    .then((buffer) => unzipSync(new Uint8Array(buffer)))
-    .catch((problem) => {
-      // Don't cache a failure - a transient read error would otherwise break
-      // the feature until the instance recycled.
-      templateCache = null;
-      throw problem;
-    });
-
-  return templateCache;
+function templateParts(type: ContractType): Promise<Record<string, Uint8Array>> {
+  let cached = templateCaches.get(type);
+  if (!cached) {
+    cached = readFile(templatePath(type))
+      .then((buffer) => unzipSync(new Uint8Array(buffer)))
+      .catch((problem) => {
+        // Don't cache a failure - a transient read error would otherwise break
+        // the feature until the instance recycled.
+        templateCaches.delete(type);
+        throw problem;
+      });
+    templateCaches.set(type, cached);
+  }
+  return cached;
 }
 
 export type FilledDocx = {
@@ -67,12 +75,15 @@ export type FilledDocx = {
   unfilled: string[];
 };
 
-export async function fillAgreement(values: AgreementValues): Promise<FilledDocx> {
+export async function fillAgreement(
+  type: ContractType,
+  values: AgreementValues,
+): Promise<FilledDocx> {
   // A shallow copy: zipSync would otherwise write back into the cached parts,
   // and the next request would inherit this contract's values.
-  const parts = { ...(await templateParts()) };
+  const parts = { ...(await templateParts(type)) };
 
-  const replacements = tokenValues(values);
+  const replacements = getContract(type).spec.tokenValues(values);
   const decoder = new TextDecoder();
   const encoder = new TextEncoder();
   const unfilled = new Set<string>();
@@ -81,9 +92,9 @@ export async function fillAgreement(values: AgreementValues): Promise<FilledDocx
     if (!TEXT_PARTS.test(name)) continue;
 
     let xml = decoder.decode(parts[name]);
-    if (!xml.includes("{{f")) continue;
+    if (!xml.includes("{{")) continue;
 
-    xml = xml.replace(/\{\{(f\d+)\}\}/g, (whole, token: string) => {
+    xml = xml.replace(/\{\{([a-z]{1,4}\d+)\}\}/g, (whole, token: string) => {
       const value = replacements[token];
       if (value === undefined) {
         // Left in place on purpose: a visible {{f12}} says "this was never
@@ -104,16 +115,19 @@ export async function fillAgreement(values: AgreementValues): Promise<FilledDocx
   return { bytes, unfilled: [...unfilled].sort() };
 }
 
-/** The parsed layout, built once - it's the same for every company. */
-let layoutCache: DocxLayout | null = null;
+/** The parsed layout per contract type, built once - same for every company. */
+const layoutCaches = new Map<ContractType, DocxLayout>();
 
 /**
  * The template as a drawable layout, for the on-screen preview.
  *
  * Parsed on the server: the .docx lives on disk, and doing it here means the
- * browser is handed a small tree of paragraphs instead of 2MB of zip.
+ * browser is handed a small tree of paragraphs instead of a zip.
  */
-export async function templateLayout(): Promise<DocxLayout> {
-  layoutCache ??= readLayout(await templateParts());
-  return layoutCache;
+export async function templateLayout(type: ContractType): Promise<DocxLayout> {
+  const cached = layoutCaches.get(type);
+  if (cached) return cached;
+  const layout = readLayout(await templateParts(type));
+  layoutCaches.set(type, layout);
+  return layout;
 }

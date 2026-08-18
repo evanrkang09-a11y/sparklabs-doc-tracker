@@ -8,7 +8,7 @@ import { readAgreement } from "@/lib/agreement-store";
 import { readExecution } from "@/lib/execution-store";
 import { readConversion } from "@/lib/conversion-store";
 import { allDiligenceItems } from "@/lib/diligence";
-import { ALL_FIELDS, missingFields } from "@/lib/agreement-fields";
+import { getContract } from "@/lib/contracts";
 import SiteHeader from "@/app/site-header";
 import OverviewContent, { type OverviewData } from "./overview-content";
 
@@ -40,8 +40,11 @@ export default async function OverviewPage({
     ? Object.values(diligence.checks).filter((c) => c.checked).length
     : 0;
 
-  const agreementTotal = ALL_FIELDS.length;
-  const agreementMissing = agreement ? missingFields(agreement.values).length : agreementTotal;
+  const agreementSpec = getContract(agreement?.contractType ?? "cps").spec;
+  const agreementTotal = agreementSpec.allFields.length;
+  const agreementMissing = agreement
+    ? agreementSpec.missingFields(agreement.values).length
+    : agreementTotal;
 
   const executionConfigured = Boolean(execution?.fundType && execution?.structure);
   const conversionStarted = Boolean(

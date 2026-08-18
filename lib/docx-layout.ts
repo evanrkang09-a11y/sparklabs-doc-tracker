@@ -323,7 +323,8 @@ function readRunStyle(properties: XmlNode | undefined): RunStyle {
   return style;
 }
 
-const SLOT = /\{\{(f\d+)\}\}/g;
+// Tokens are a short letter prefix plus a number: f27 (CPS), s7 (SAFE), etc.
+const SLOT = /\{\{([a-z]{1,4}\d+)\}\}/g;
 
 /**
  * Splits a run's text so every fillable slot is its own run.

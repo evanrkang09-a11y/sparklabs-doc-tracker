@@ -9,6 +9,7 @@ import { auth } from "@/auth";
 import { describe } from "@/lib/errors";
 import { getDeal } from "@/lib/deals-store";
 import { readAgreement, saveAgreement } from "@/lib/agreement-store";
+import { isContractType } from "@/lib/contracts";
 
 export async function GET(
   request: Request,
@@ -48,14 +49,16 @@ export async function PUT(
     return Response.json({ error: "Body must be JSON" }, { status: 400 });
   }
 
-  const { values } = (body ?? {}) as Record<string, unknown>;
+  const { values, contractType } = (body ?? {}) as Record<string, unknown>;
   if (typeof values !== "object" || values === null) {
     return Response.json({ error: "'values' must be an object" }, { status: 400 });
   }
 
+  const type = isContractType(contractType) ? contractType : "cps";
+
   try {
     return Response.json(
-      await saveAgreement(dealId, values as Record<string, string>, who),
+      await saveAgreement(dealId, type, values as Record<string, string>, who),
     );
   } catch (problem) {
     return Response.json({ error: describe(problem) }, { status: 500 });
