@@ -59,7 +59,9 @@ const SCHEMA = {
         type: "object",
         properties: {
           filename: { type: "string" },
-          documentId: { type: ["string", "null"] },
+          // Gemini's response schema rejects a union type like ["string","null"];
+          // it wants a single type plus `nullable`.
+          documentId: { type: "string", nullable: true },
           confidence: { type: "number" },
           reason: { type: "string" },
         },
