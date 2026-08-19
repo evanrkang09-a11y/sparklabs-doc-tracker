@@ -510,13 +510,25 @@ function readTable(node: XmlNode, counters: Counters): Table {
     rows.push(cells);
   }
 
+  // A table draws lines if it declares borders at the table level, OR - as a
+  // Google-Docs export does - if its cells declare their own borders
+  // (w:tcBorders). Checking only the table level made those export tables
+  // render with no lines and their text adrift.
+  const visible = (node: XmlNode | undefined) =>
+    node !== undefined &&
+    (["w:top", "w:left", "w:bottom", "w:right"] as const).some((side) => {
+      const value = valOf(node, side);
+      return value !== undefined && value !== "none" && value !== "nil";
+    });
+
+  const anyCellBordered = descendantsNamed(node, "w:tcBorders").some(visible);
+
   return {
     kind: "table",
     rows,
-    // No <w:tblBorders> at all means the table is a layout device (the
-    // signature blocks use one), and drawing lines round it would invent
-    // structure the contract doesn't have.
-    bordered: borders !== undefined && valOf(borders, "w:top") !== "none",
+    // No borders anywhere means the table is a layout device (some signature
+    // blocks use one), and drawing lines round it would invent structure.
+    bordered: visible(borders) || anyCellBordered,
   };
 }
 
