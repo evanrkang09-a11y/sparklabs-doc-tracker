@@ -148,9 +148,38 @@ export const SAFE_GROUPS: AgreementGroup[] = [
     ],
   },
   {
+    id: "safe-sign-investor",
+    titleKo: "4. 서명란 — 투자자",
+    titleEn: "4. Signature block — investor",
+    fields: [
+      {
+        id: "invSigCompany",
+        labelKo: "투자자 — 조합/회사명",
+        labelEn: "Investor — name",
+        kind: "text",
+        tokens: ["s16"],
+        default: "스파크랩 테크 퍼스트 스텝 투자조합",
+      },
+      { id: "invSigAddress", labelKo: "투자자 — 주소", labelEn: "Investor — address", kind: "text", tokens: ["s17"] },
+      { id: "invSigBizNo", labelKo: "투자자 — 사업자등록번호", labelEn: "Investor — business reg. no.", kind: "text", tokens: ["s18"] },
+      { id: "invSigPhone", labelKo: "투자자 — 전화", labelEn: "Investor — phone", kind: "text", tokens: ["s19"] },
+    ],
+  },
+  {
+    id: "safe-sign-company",
+    titleKo: "5. 서명란 — 회사",
+    titleEn: "5. Signature block — company",
+    fields: [
+      { id: "coSigCompany", labelKo: "회사 — 회사명", labelEn: "Company — name", kind: "text", tokens: ["s20"] },
+      { id: "coSigAddress", labelKo: "회사 — 주소", labelEn: "Company — address", kind: "text", tokens: ["s21"] },
+      { id: "coSigBizNo", labelKo: "회사 — 사업자등록번호", labelEn: "Company — business reg. no.", kind: "text", tokens: ["s22"] },
+      { id: "coSigPhone", labelKo: "회사 — 전화", labelEn: "Company — phone", kind: "text", tokens: ["s23"] },
+    ],
+  },
+  {
     id: "safe-date",
-    titleKo: "4. 체결일",
-    titleEn: "4. Signing date",
+    titleKo: "6. 체결일",
+    titleEn: "6. Signing date",
     fields: [
       {
         id: "signYear",
