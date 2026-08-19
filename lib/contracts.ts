@@ -18,6 +18,7 @@ import {
   type AgreementValues,
 } from "./agreement-fields";
 import { SAFE_GROUPS } from "./safe-fields";
+import { RCPS_GROUPS } from "./rcps-fields";
 
 export type ContractType = "cps" | "rcps" | "safe";
 
@@ -101,9 +102,9 @@ export const CONTRACTS: Record<ContractType, ContractMeta> = {
     id: "rcps",
     labelKo: "상환전환우선주 (RCPS)",
     labelEn: "RCPS",
-    ready: false,
-    templateFile: null,
-    spec: buildSpec([]),
+    ready: true,
+    templateFile: "rcps-agreement.docx",
+    spec: buildSpec(RCPS_GROUPS),
   },
 };
 
