@@ -177,9 +177,45 @@ export const SAFE_GROUPS: AgreementGroup[] = [
     ],
   },
   {
+    id: "safe-appendix",
+    titleKo: "6. 별지3 — 경업금지",
+    titleEn: "6. Appendix 3 — non-compete",
+    fields: [
+      {
+        id: "noncompeteYears",
+        labelKo: "경업금지 기간 (년)",
+        labelEn: "Non-compete period (years)",
+        kind: "number",
+        tokens: ["s24"],
+        default: "2",
+        standard: true,
+        hintKo: "재직·퇴사 후 경업금지 기간 (2곳)",
+        hintEn: "Applies in both non-compete clauses",
+      },
+      {
+        id: "noncompletePenalty",
+        labelKo: "경업 위반 위약벌 (원)",
+        labelEn: "Non-compete breach penalty (KRW)",
+        kind: "money",
+        tokens: ["s25"],
+        default: "50,000,000",
+        standard: true,
+      },
+      {
+        id: "resignPenalty",
+        labelKo: "퇴사제한 위반 위약벌 (원)",
+        labelEn: "Early-resignation penalty (KRW)",
+        kind: "money",
+        tokens: ["s26"],
+        hintKo: "별지3 I. 퇴사제한 위반 시 위약벌",
+        hintEn: "Appendix 3 §I early-resignation penalty",
+      },
+    ],
+  },
+  {
     id: "safe-date",
-    titleKo: "6. 체결일",
-    titleEn: "6. Signing date",
+    titleKo: "7. 체결일",
+    titleEn: "7. Signing date",
     fields: [
       {
         id: "signYear",

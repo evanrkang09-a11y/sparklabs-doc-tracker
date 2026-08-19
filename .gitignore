@@ -57,3 +57,5 @@ contract-preview.html
 
 # Scratch file used to pass a commit message to git
 .commit-msg.txt
+
+.env*
