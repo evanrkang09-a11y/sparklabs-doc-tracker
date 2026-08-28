@@ -13,17 +13,19 @@ export type Fund = {
   /** SparkLabs Ventures / Partners / Sparklabs / Other. */
   category: string;
   currency: string;
+  /** Google Drive folder ID, created when the fund is added. */
+  driveFolderId?: string;
 };
 
 export const FUNDS: Fund[] = [
   { id: "skf1", name: "SKF1", category: "SparkLabs Ventures", currency: "KRW" },
   { id: "skf2", name: "SKF2", category: "Other", currency: "USD" },
   { id: "skf3", name: "SKF3", category: "SparkLabs Partners", currency: "KRW" },
-  { id: "skf4", name: "SKF4", category: "SparkLabs", currency: "KRW" },
+  { id: "skf4", name: "SKF4", category: "SparkLabs", currency: "KRW", driveFolderId: "1mRuFGLKnI7yeeX9X3z299OGT_9eWqFDi" },
   { id: "sshin1", name: "Sshin1", category: "SparkLabs Partners", currency: "KRW" },
   { id: "cloud1", name: "Cloud1", category: "SparkLabs", currency: "KRW" },
-  { id: "cjftr", name: "CJftr", category: "SparkLabs Partners", currency: "KRW" },
-  { id: "firststep", name: "Firststep", category: "SparkLabs", currency: "KRW" },
+  { id: "cjftr", name: "CJftr", category: "SparkLabs Partners", currency: "KRW", driveFolderId: "1AvIGZ5ZiwbG2LeUxtzs7AhnrU-NLdBI5" },
+  { id: "firststep", name: "Firststep", category: "SparkLabs", currency: "KRW", driveFolderId: "1PfM5QCEMjSUInkq-djvGzrLdRWk5jF6M" },
   { id: "ignition1", name: "Ignition1", category: "Other", currency: "USD" },
   { id: "cosmetic", name: "Cosmetic", category: "SparkLabs", currency: "KRW" },
   { id: "skhn", name: "SKHN", category: "SparkLabs", currency: "KRW" },

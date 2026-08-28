@@ -19,6 +19,7 @@ import { readDiligence, type DiligenceRecord } from "@/lib/diligence-store";
 import { readComments } from "@/lib/comments-store";
 import { emptyAnalysis, readAnalysis } from "@/lib/analysis-store";
 import SiteHeader from "@/app/site-header";
+import LogPageView from "@/app/log-page-view";
 import DiligenceChecklist from "./diligence-checklist";
 
 export const metadata: Metadata = {
@@ -90,6 +91,7 @@ export default async function DiligencePage({
         companyEn={deal.companyEn}
         userEmail={session?.user?.email}
       />
+      <LogPageView action={`Viewed diligence — ${deal.companyKo || deal.companyEn}`} dealId={deal.id} />
       <DiligenceChecklist
         deal={deal}
         sections={sections}

@@ -6,6 +6,7 @@
  * filename is not a decision this app should make on its own.
  */
 
+import { auth } from "@/auth";
 import { getDeal } from "@/lib/deals-store";
 import { collectDealStatus, describe } from "@/lib/deal-status";
 import { classifyFilenames, isAiConfigured, MIN_CONFIDENCE } from "@/lib/classify";
@@ -16,6 +17,11 @@ export async function POST(
   request: Request,
   context: { params: Promise<{ dealId: string }> },
 ) {
+  const session = await auth();
+  if (!session?.user || session.user.role === "startup") {
+    return Response.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   const { dealId } = await context.params;
   const deal = await getDeal(dealId);
 

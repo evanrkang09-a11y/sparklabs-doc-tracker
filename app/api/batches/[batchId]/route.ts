@@ -5,6 +5,7 @@
  * should never take the companies underneath it with it.
  */
 
+import { auth } from "@/auth";
 import { describe } from "@/lib/errors";
 import { deleteBatch, listBatches } from "@/lib/deals-store";
 
@@ -12,6 +13,11 @@ export async function DELETE(
   request: Request,
   context: { params: Promise<{ batchId: string }> },
 ) {
+  const session = await auth();
+  if (!session?.user || session.user.role === "startup") {
+    return Response.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   const { batchId } = await context.params;
 
   const batches = await listBatches();

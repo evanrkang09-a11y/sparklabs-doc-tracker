@@ -31,6 +31,8 @@ export default function EmailDrafts({
 
   const [to, setTo] = useState("");
   const [copied, setCopied] = useState(false);
+  const [suggesting, setSuggesting] = useState(false);
+  const [suggestHint, setSuggestHint] = useState<string | null>(null);
 
   const company = pick(deal.companyKo, deal.companyEn);
   const dash = "—";
@@ -102,10 +104,37 @@ Thank you.`;
   useEffect(() => setBody(generated.body), [generated.body]);
 
   function sendEmail() {
-    const params = new URLSearchParams({ subject: generated.subject, body });
-    // URLSearchParams uses "+" for spaces; mail clients want %20.
-    const query = params.toString().replace(/\+/g, "%20");
-    window.location.href = `mailto:${encodeURIComponent(to)}?${query}`;
+    // Open Gmail compose in a new tab with recipient + subject pre-filled.
+    // Body goes to clipboard — paste it once Gmail opens.
+    navigator.clipboard.writeText(body).catch(() => {});
+    const params = new URLSearchParams({
+      view: "cm",
+      fs: "1",
+      to: to,
+      su: generated.subject,
+    });
+    window.open(`https://mail.google.com/mail/?${params.toString()}`, "_blank");
+    setCopied(true);
+    setTimeout(() => setCopied(false), 4000);
+  }
+
+  async function suggestEmail() {
+    setSuggesting(true);
+    setSuggestHint(null);
+    try {
+      const res = await fetch(`/api/deals/${deal.id}/suggest-email`, { method: "POST" });
+      const data = await res.json().catch(() => null);
+      if (data?.email) {
+        setTo(data.email);
+        setSuggestHint(ko ? "✓ 이메일 자동입력 완료" : "✓ Email filled in");
+      } else {
+        setSuggestHint(ko ? "업로드된 서류에서 이메일을 찾지 못했습니다." : "No email found in uploaded documents.");
+      }
+    } catch {
+      setSuggestHint(ko ? "오류가 발생했습니다." : "Something went wrong.");
+    } finally {
+      setSuggesting(false);
+    }
   }
 
   async function copy() {
@@ -133,13 +162,28 @@ Thank you.`;
         <label className="block text-[11px] font-medium text-neutral-500">
           {ko ? "받는 사람 (이메일)" : "Recipient (email)"}
         </label>
-        <input
-          type="email"
-          value={to}
-          onChange={(e) => setTo(e.target.value)}
-          placeholder="founder@company.com"
-          className="mt-1 w-full rounded-lg border border-neutral-300 bg-white px-2.5 py-1.5 text-sm focus:border-neutral-500 focus:outline-none dark:border-neutral-700 dark:bg-neutral-950"
-        />
+        <div className="mt-1 flex gap-2">
+          <input
+            type="email"
+            value={to}
+            onChange={(e) => setTo(e.target.value)}
+            placeholder="founder@company.com"
+            className="min-w-0 flex-1 rounded-lg border border-neutral-300 bg-white px-2.5 py-1.5 text-sm focus:border-neutral-500 focus:outline-none dark:border-neutral-700 dark:bg-neutral-950"
+          />
+          <button
+            type="button"
+            onClick={suggestEmail}
+            disabled={suggesting}
+            className="shrink-0 rounded-lg border border-neutral-300 px-2.5 py-1.5 text-xs font-medium transition-colors hover:bg-neutral-100 disabled:opacity-50 dark:border-neutral-700 dark:hover:bg-neutral-800"
+          >
+            {suggesting ? (ko ? "검색 중…" : "Searching…") : (ko ? "AI 자동완성" : "AI Suggest")}
+          </button>
+        </div>
+        {suggestHint && (
+          <p className={`mt-1 text-[11px] ${suggestHint.startsWith("✓") ? "text-emerald-600 dark:text-emerald-400" : "text-neutral-400"}`}>
+            {suggestHint}
+          </p>
+        )}
       </div>
 
       <div className="mb-2">
@@ -166,7 +210,9 @@ Thank you.`;
           onClick={sendEmail}
           className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-indigo-700"
         >
-          {ko ? "이메일 보내기" : "Send email"}
+          {copied
+            ? (ko ? "메일 열림 — 본문 붙여넣기 ✓" : "Mail opened — paste body ✓")
+            : (ko ? "이메일 보내기" : "Send email")}
         </button>
         <button
           type="button"

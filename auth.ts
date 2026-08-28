@@ -1,68 +1,76 @@
 /**
- * Who is allowed in.
+ * Authentication for two audiences:
  *
- * Sign-in goes through Google, so this app never sees anyone's password - the
- * password is typed on google.com and Google reports back a verified email
- * address. Nothing here to leak.
+ *  1. SparkLabs employees — must have a @sparklabs.co.kr address (or be in
+ *     ALLOWED_EMAILS). They get a role of "admin" or "employee".
  *
- * The employee check is the domain of that verified address. It runs in the
- * signIn callback, on the server, deliberately: Google's `hd` parameter only
- * filters which accounts the *login screen* offers, and a request can be made
- * without it. The server-side check is the actual gate.
+ *  2. Portfolio companies — registered by the admin with a specific email
+ *     address. They get a role of "startup" and a dealId.
  *
- * Everyone using this tool is SparkLabs staff. Companies email their documents
- * in and an employee uploads them, so there is no external user to account for.
+ * Both audiences use Google OAuth, so there's no password to manage. The
+ * sign-in callback determines which role applies and stores it in the JWT.
+ * The middleware reads the role on every request to enforce access control.
  */
 
 import NextAuth from "next-auth";
 import Google from "next-auth/providers/google";
+import type { JWT } from "next-auth/jwt";
 import { readEnv, readEnvList, readEnvOr } from "@/lib/env";
+import { isSuperiorUser, getStartupByEmail, upsertUser, getUserPermissions } from "@/lib/admin-store";
+import { DEFAULT_EMPLOYEE_PERMISSIONS, type Permission } from "@/lib/permissions";
 
-/** Override with ALLOWED_EMAIL_DOMAIN if the company domain is ever different. */
+// ─── Extend the built-in JWT type ─────────────────────────────────────────────
+declare module "next-auth/jwt" {
+  interface JWT {
+    role?: "admin" | "employee" | "startup";
+    permissions?: Permission[];
+    dealId?: string;
+    startupPermissions?: string[];
+  }
+}
+
+declare module "next-auth" {
+  interface Session {
+    user: {
+      name?: string | null;
+      email?: string | null;
+      image?: string | null;
+      role?: "admin" | "employee" | "startup";
+      permissions?: Permission[];
+      dealId?: string;
+      startupPermissions?: string[];
+    };
+  }
+}
+
+// ─── Domain / exception list ──────────────────────────────────────────────────
+
 const ALLOWED_DOMAIN = readEnvOr("ALLOWED_EMAIL_DOMAIN", "sparklabs.co.kr");
-
-/**
- * Named exceptions, comma separated in ALLOWED_EMAILS.
- *
- * For people who do the work but don't have a company address - interns and
- * contractors, mainly. Deliberately a list of exact addresses rather than a
- * second domain: every entry is a decision someone made, and `vercel env ls`
- * shows the whole list. Empty in the normal case.
- */
 const EXTRA_EMAILS = readEnvList("ALLOWED_EMAILS");
 
 export function allowedDomain(): string {
   return ALLOWED_DOMAIN;
 }
 
-/** True for a Google-verified company address, or a named exception. */
 export function isAllowedEmail(email: unknown, verified: unknown): boolean {
   if (typeof email !== "string") return false;
-
-  // Google marks Workspace addresses verified. Without this check a self-hosted
-  // or unverified account could claim any address it liked.
   if (verified !== true) return false;
-
   const address = email.toLowerCase();
-
   return (
-    address.endsWith(`@${ALLOWED_DOMAIN.toLowerCase()}`) || EXTRA_EMAILS.includes(address)
+    address.endsWith(`@${ALLOWED_DOMAIN.toLowerCase()}`) ||
+    EXTRA_EMAILS.includes(address)
   );
 }
+
+// ─── Auth ─────────────────────────────────────────────────────────────────────
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: [
     Google({
-      // Passed explicitly rather than left to auto-detection, so they go
-      // through readEnv above and arrive clean.
       clientId: readEnv("AUTH_GOOGLE_ID"),
       clientSecret: readEnv("AUTH_GOOGLE_SECRET"),
       authorization: {
         params: {
-          // `hd` narrows which accounts Google's chooser offers. It's a
-          // convenience - the real check is in signIn below - but it filters
-          // out the named exceptions too, so it only goes on when there
-          // aren't any. Dropping it changes what users see, never who gets in.
           ...(EXTRA_EMAILS.length === 0 ? { hd: ALLOWED_DOMAIN } : {}),
           prompt: "select_account",
         },
@@ -76,20 +84,94 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   },
 
   callbacks: {
-    /** The gate. Returning false refuses the sign-in. */
-    signIn({ profile }) {
-      return isAllowedEmail(profile?.email, profile?.email_verified);
+    async signIn({ profile }) {
+      const email = profile?.email ?? "";
+      const verified = profile?.email_verified === true;
+
+      // Allow SparkLabs employees.
+      if (isAllowedEmail(email, verified)) return true;
+
+      // Allow registered startup accounts.
+      const startup = await getStartupByEmail(email).catch(() => null);
+      if (startup) return true;
+
+      return false;
     },
 
-    /**
-     * Re-checks the address on every request rather than trusting the token
-     * until it expires. Returning null throws the session away, so removing
-     * someone from ALLOWED_EMAILS - or a colleague leaving and losing their
-     * company address - takes effect on their next request rather than
-     * whenever their cookie happens to lapse.
-     */
-    jwt({ token }) {
-      return isAllowedEmail(token.email, true) ? token : null;
+    async jwt({ token, profile, trigger }) {
+      // On initial sign-in `profile` is present; on subsequent requests it
+      // isn't, so we keep whatever role/permissions are already in the token.
+      if (trigger === "signIn" && profile) {
+
+        const email = (profile.email ?? "").toLowerCase();
+        const name = (profile.name as string | undefined) ?? email;
+        const verified = profile.email_verified === true;
+
+        if (isAllowedEmail(email, verified)) {
+          // SparkLabs employee or admin.
+          const isAdmin = await isSuperiorUser(email).catch(() => false);
+          const permissions = isAdmin
+            ? (["documents", "agreements", "execution", "conversion"] as Permission[])
+            : await getUserPermissions(email).catch(
+                () => ["documents", "agreements", "execution", "conversion"] as Permission[],
+              );
+
+          // Record/update the user in the user store.
+          await upsertUser(email, name).catch(() => {});
+
+          token.role = isAdmin ? "admin" : "employee";
+          token.permissions = permissions;
+          delete token.dealId;
+        } else {
+          // Portfolio company.
+          const startup = await getStartupByEmail(email).catch(() => null);
+          if (startup) {
+            token.role = "startup";
+            token.permissions = [];
+            token.dealId = startup.dealId;
+            token.startupPermissions = startup.startupPermissions ?? [];
+          } else {
+            return null as unknown as JWT; // deny
+          }
+        }
+      }
+
+      // Backfill: tokens minted before the role/permissions fields were introduced.
+      //
+      // Case 1 (role set, permissions missing): employee signed in after the role
+      // system was added but before the permissions field was added — set permissions.
+      //
+      // Case 2 (neither role nor dealId): employee signed in before the role system
+      // itself existed. Startup users always have dealId, so no dealId means SparkLabs
+      // — set role and permissions both.
+      if (
+        (token.role === "employee" || token.role === "admin" || (!token.role && !token.dealId)) &&
+        token.permissions === undefined
+      ) {
+        const email = typeof token.email === "string" ? token.email.toLowerCase() : "";
+
+        if (!token.role) {
+          const isAdm = await isSuperiorUser(email).catch(() => false);
+          token.role = isAdm ? "admin" : "employee";
+        }
+
+        token.permissions =
+          token.role === "admin"
+            ? (["documents", "agreements", "execution", "conversion"] as Permission[])
+            : await getUserPermissions(email).catch(() => DEFAULT_EMPLOYEE_PERMISSIONS);
+      }
+
+      return token;
+    },
+
+    async session({ session, token }) {
+      if (session.user) {
+        session.user.role = token.role;
+        session.user.permissions = token.permissions;
+        session.user.dealId = token.dealId;
+        session.user.startupPermissions = token.startupPermissions;
+      }
+      return session;
     },
   },
 

@@ -34,7 +34,7 @@ export async function PATCH(
     return Response.json({ error: "Body must be JSON" }, { status: 400 });
   }
 
-  const { archived, batchId, fundId, dealType, market } = (body ?? {}) as Record<string, unknown>;
+  const { archived, batchId, fundId, dealType, market, affiliationDate } = (body ?? {}) as Record<string, unknown>;
   const changes: Parameters<typeof updateDeal>[1] = {};
 
   if (archived !== undefined) {
@@ -65,6 +65,10 @@ export async function PATCH(
 
   if (market !== undefined) {
     changes.market = market === "overseas" ? "overseas" : "domestic";
+  }
+
+  if (affiliationDate !== undefined) {
+    changes.affiliationDate = typeof affiliationDate === "string" && affiliationDate ? affiliationDate : undefined;
   }
 
   try {

@@ -7,6 +7,7 @@
  * on-demand only (a question per request).
  */
 
+import { auth } from "@/auth";
 import { describe } from "@/lib/errors";
 import { isAiConfigured } from "@/lib/analysis";
 import { MISSING_KEY_MESSAGE } from "@/lib/openrouter";
@@ -64,18 +65,20 @@ async function dealContext(dealId: string): Promise<string | null> {
   return lines.join("\n");
 }
 
-const SYSTEM = `You are the internal process assistant for SparkLabs Korea's investment-operations team.
+const SYSTEM = `You are the internal assistant for SparkLabs Korea's investment-operations team. You help with two kinds of questions:
 
-Answer ONLY using the process documentation provided below. Do not invent steps, documents, dates, or contacts that are not in it.
+1. PROCESS QUESTIONS — anything about SparkLabs' investment workflow (documents to collect, due diligence steps, agreement types, post-payment deadlines, SAFE conversion, etc.). For these, rely on the process documentation below and cite the relevant section (e.g. "#3 서류 실사"). Do not invent steps or deadlines that are not in it.
 
-Rules:
-- Answer in the same language as the user's question (Korean or English). Korean terms may stay in Korean.
-- Be concise and practical. Use short bullet points for lists of documents or steps.
-- When useful, name the section your answer comes from (e.g. "#3 서류 실사", "#6 투자납입 후").
-- If the answer is not covered by the documentation, say so plainly (do not guess) and suggest checking with the mentor.
-- This is internal guidance, not legal advice.
+2. GENERAL QUESTIONS — anything else: research on a specific company or founder, startup market info, investment terminology, Korean business law concepts, financial modeling, competitor analysis, or any open question the team might ask while evaluating a deal. For these, answer from your general knowledge. Be helpful and informative rather than refusing.
 
-=== PROCESS DOCUMENTATION ===
+Rules that apply to both:
+- Answer in the same language as the user's question (Korean or English). Korean terms may stay in Korean even in English answers.
+- Be concise and practical. Use bullet points for lists.
+- If a question mixes process and general knowledge, answer both parts.
+- This is internal guidance, not legal or financial advice.
+- If you genuinely don't know something (e.g. a private company's specific financials), say so and suggest where they might find it.
+
+=== SPARKLABS PROCESS DOCUMENTATION ===
 ${PROCESS_KNOWLEDGE}
 === END DOCUMENTATION ===`;
 
@@ -97,6 +100,9 @@ function cleanTurns(raw: unknown): ChatTurn[] {
 }
 
 export async function POST(request: Request) {
+  const session = await auth();
+  if (!session?.user) return Response.json({ error: "Authentication required" }, { status: 401 });
+
   if (!isAiConfigured()) {
     return Response.json({ error: MISSING_KEY_MESSAGE }, { status: 503 });
   }
@@ -122,6 +128,10 @@ export async function POST(request: Request) {
   // system prompt so "what's left for this deal?" gets a specific answer.
   let system = SYSTEM;
   if (typeof raw.dealId === "string" && raw.dealId) {
+    // Startup users can only ask about their own deal.
+    if (session.user.role === "startup" && session.user.dealId !== raw.dealId) {
+      return Response.json({ error: "Forbidden" }, { status: 403 });
+    }
     const context = await dealContext(raw.dealId).catch(() => null);
     if (context) {
       system += `\n\n=== CURRENT DEAL CONTEXT (the deal the user is viewing) ===\n${context}\n=== END DEAL CONTEXT ===`;

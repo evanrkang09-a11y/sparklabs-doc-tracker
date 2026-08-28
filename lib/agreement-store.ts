@@ -15,14 +15,20 @@ import { del, get, put } from "@vercel/blob";
 import { type AgreementValues } from "./agreement-fields";
 import { getContract, isContractType, type ContractType } from "./contracts";
 
+export type StartupEdit = { editedBy: string; editedAt: string };
+
 export type AgreementRecord = {
   dealId: string;
   /** Which contract template this deal is filling. */
   contractType: ContractType;
   values: AgreementValues;
+  /** User edits to plain-text paragraphs, keyed by block index string. */
+  overrides: Record<string, string>;
   /** Who saved last and when, so a colleague knows whose numbers these are. */
   updatedBy: string | null;
   updatedAt: string | null;
+  /** Fields last touched by the startup, so employees can see company contributions. */
+  startupEdits?: Record<string, StartupEdit>;
 };
 
 function pathFor(dealId: string): string {
@@ -39,6 +45,7 @@ export function emptyAgreement(
     // Seeded with the house standards for that contract, so a new agreement
     // starts from SparkLabs' position rather than blank.
     values: getContract(contractType).spec.defaultValues(),
+    overrides: {},
     updatedBy: null,
     updatedAt: null,
   };
@@ -54,8 +61,10 @@ export async function readAgreement(dealId: string): Promise<AgreementRecord> {
     const raw: unknown = JSON.parse(await new Response(found.stream).text());
     if (typeof raw !== "object" || raw === null) return emptyAgreement(dealId);
 
-    const { values, updatedBy, updatedAt, contractType } = raw as Partial<AgreementRecord>;
+    const { values, overrides, updatedBy, updatedAt, contractType } = raw as Partial<AgreementRecord>;
     const type = isContractType(contractType) ? contractType : "cps";
+
+    const { startupEdits } = raw as Partial<AgreementRecord>;
 
     return {
       dealId,
@@ -63,8 +72,10 @@ export async function readAgreement(dealId: string): Promise<AgreementRecord> {
       // Defaults underneath, so a field added to the template later appears
       // with its standard value rather than blank in an existing draft.
       values: { ...getContract(type).spec.defaultValues(), ...cleanValues(values) },
+      overrides: cleanOverrides(overrides),
       updatedBy: typeof updatedBy === "string" ? updatedBy : null,
       updatedAt: typeof updatedAt === "string" ? updatedAt : null,
+      startupEdits: cleanStartupEdits(startupEdits),
     };
   } catch {
     return emptyAgreement(dealId);
@@ -84,13 +95,17 @@ export async function saveAgreement(
   contractType: ContractType,
   values: AgreementValues,
   updatedBy: string,
+  overrides: Record<string, string> = {},
+  startupEdits?: Record<string, StartupEdit>,
 ): Promise<AgreementRecord> {
   const record: AgreementRecord = {
     dealId,
     contractType: isContractType(contractType) ? contractType : "cps",
     values: cleanValues(values),
+    overrides: cleanOverrides(overrides),
     updatedBy,
     updatedAt: new Date().toISOString(),
+    ...(startupEdits ? { startupEdits } : {}),
   };
 
   await put(pathFor(dealId), JSON.stringify(record, null, 2), {
@@ -120,4 +135,36 @@ function cleanValues(values: unknown): AgreementValues {
     if (typeof value === "string") out[key] = value;
   }
   return out;
+}
+
+/** Keeps paragraph overrides that are non-empty strings, max 10 000 chars each. */
+function cleanOverrides(overrides: unknown): Record<string, string> {
+  if (typeof overrides !== "object" || overrides === null) return {};
+
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(overrides)) {
+    if (typeof value === "string" && value.length > 0 && value.length <= 10_000) {
+      out[key] = value;
+    }
+  }
+  return out;
+}
+
+function cleanStartupEdits(edits: unknown): Record<string, StartupEdit> | undefined {
+  if (typeof edits !== "object" || edits === null) return undefined;
+  const out: Record<string, StartupEdit> = {};
+  for (const [key, value] of Object.entries(edits)) {
+    if (
+      typeof value === "object" &&
+      value !== null &&
+      typeof (value as Record<string, unknown>).editedBy === "string" &&
+      typeof (value as Record<string, unknown>).editedAt === "string"
+    ) {
+      out[key] = {
+        editedBy: (value as Record<string, string>).editedBy,
+        editedAt: (value as Record<string, string>).editedAt,
+      };
+    }
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
 }

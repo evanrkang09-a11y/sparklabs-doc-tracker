@@ -25,6 +25,12 @@ export type ConversionRecord = {
   preChecks: Record<string, boolean>;
   /** Post-conversion documents gathered, keyed by ConversionDoc id. */
   postChecks: Record<string, boolean>;
+  /** Free-text comments per process step, keyed by step id. */
+  stepComments: Record<string, string>;
+  /** Free-text comments per pre-conversion doc, keyed by doc id. */
+  preComments: Record<string, string>;
+  /** Free-text comments per post-conversion doc, keyed by doc id. */
+  postComments: Record<string, string>;
   /** Share-conversion estimate inputs. */
   calc: {
     method: CalcMethod;
@@ -52,6 +58,9 @@ export function emptyConversion(dealId: string): ConversionRecord {
     stepChecks: {},
     preChecks: {},
     postChecks: {},
+    stepComments: {},
+    preComments: {},
+    postComments: {},
     calc: {
       method: "discount",
       amount: "",
@@ -118,6 +127,15 @@ function cleanChecks(raw: unknown): Record<string, boolean> {
   return out;
 }
 
+function cleanComments(raw: unknown): Record<string, string> {
+  if (typeof raw !== "object" || raw === null) return {};
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof value === "string" && value.length <= 2000) out[key] = value;
+  }
+  return out;
+}
+
 function str(raw: unknown, max = 40): string {
   return typeof raw === "string" ? raw.slice(0, max) : "";
 }
@@ -135,6 +153,9 @@ function sanitize(dealId: string, raw: unknown): ConversionRecord {
   record.stepChecks = cleanChecks(r.stepChecks);
   record.preChecks = cleanChecks(r.preChecks);
   record.postChecks = cleanChecks(r.postChecks);
+  record.stepComments = cleanComments(r.stepComments);
+  record.preComments = cleanComments(r.preComments);
+  record.postComments = cleanComments(r.postComments);
 
   const calc = (r.calc ?? {}) as Partial<ConversionRecord["calc"]>;
   record.calc = {

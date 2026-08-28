@@ -48,7 +48,7 @@ function applyToDocument(lang: Lang) {
 }
 
 export function LangProvider({ children }: { children: ReactNode }) {
-  const [lang, setLangState] = useState<Lang>("ko");
+  const [lang, setLangState] = useState<Lang>("en");
 
   useEffect(() => {
     const saved = window.localStorage.getItem(STORAGE_KEY);

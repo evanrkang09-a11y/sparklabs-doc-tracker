@@ -15,6 +15,11 @@ export async function GET(
   request: Request,
   context: { params: Promise<{ dealId: string }> },
 ) {
+  const session = await auth();
+  if (!session?.user || session.user.role === "startup") {
+    return Response.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   const { dealId } = await context.params;
   if (!(await getDeal(dealId))) {
     return Response.json({ error: `Unknown deal: ${dealId}` }, { status: 404 });

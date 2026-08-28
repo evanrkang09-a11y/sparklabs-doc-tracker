@@ -34,6 +34,14 @@ export type ExecutionRecord = {
   oiChecks: Record<string, boolean>;
   /** 투자납입 후 서류 gathered, keyed by ExecutionDoc id. */
   postChecks: Record<string, boolean>;
+  /** Uploaded filenames for OI docs, keyed by ExecutionDoc id. */
+  oiUploads: Record<string, string>;
+  /** Uploaded filenames for post-payment docs, keyed by ExecutionDoc id. */
+  postUploads: Record<string, string>;
+  /** Free-text comments per OI doc, keyed by ExecutionDoc id. */
+  oiComments: Record<string, string>;
+  /** Free-text comments per post-payment doc, keyed by ExecutionDoc id. */
+  postComments: Record<string, string>;
   /** Numbers as they appear on the 운용지시서 and the 의사록, to cross-check. */
   consistency: {
     instruction: NumberSet;
@@ -60,6 +68,10 @@ export function emptyExecution(dealId: string): ExecutionRecord {
     paymentDate: "",
     oiChecks: {},
     postChecks: {},
+    oiUploads: {},
+    postUploads: {},
+    oiComments: {},
+    postComments: {},
     consistency: { instruction: emptyNumbers(), minutes: emptyNumbers() },
     updatedBy: null,
     updatedAt: null,
@@ -120,6 +132,24 @@ export async function deleteExecution(dealId: string): Promise<void> {
 
 // --- helpers ---------------------------------------------------------------
 
+function cleanUploads(raw: unknown): Record<string, string> {
+  if (typeof raw !== "object" || raw === null) return {};
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof value === "string" && value.trim() && value.length <= 260) out[key] = value;
+  }
+  return out;
+}
+
+function cleanComments(raw: unknown): Record<string, string> {
+  if (typeof raw !== "object" || raw === null) return {};
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof value === "string" && value.length <= 2000) out[key] = value;
+  }
+  return out;
+}
+
 function cleanChecks(raw: unknown): Record<string, boolean> {
   if (typeof raw !== "object" || raw === null) return {};
   const out: Record<string, boolean> = {};
@@ -155,6 +185,10 @@ function sanitize(dealId: string, raw: unknown): ExecutionRecord {
     typeof r.paymentDate === "string" ? r.paymentDate.slice(0, 20) : "";
   record.oiChecks = cleanChecks(r.oiChecks);
   record.postChecks = cleanChecks(r.postChecks);
+  record.oiUploads = cleanUploads(r.oiUploads);
+  record.postUploads = cleanUploads(r.postUploads);
+  record.oiComments = cleanComments(r.oiComments);
+  record.postComments = cleanComments(r.postComments);
   record.consistency = {
     instruction: cleanNumbers(r.consistency?.instruction),
     minutes: cleanNumbers(r.consistency?.minutes),

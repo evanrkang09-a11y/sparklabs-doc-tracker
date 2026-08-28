@@ -1,0 +1,252 @@
+══════════════════════════════════════════════════════════════════════
+  SparkLabs 서류 추적기 — PRESENTATION SCRIPT
+  10~15분 발표용  |  슬라이드별 스크립트
+
+  읽는 법:
+  [ENGLISH]   → 본인 말로 편하게 설명 (bullet = 아이디어만 전달)
+  【한국어】  → 이 부분은 읽어야 할 문장 (중요 표현 포함)
+══════════════════════════════════════════════════════════════════════
+
+
+────────────────────────────────────────────────────────────────────
+SLIDE 1 — TITLE   (약 30초)
+────────────────────────────────────────────────────────────────────
+
+【안녕하세요. 저는 이번 여름 스파크랩 코리아에서 AI 에이전트 인턴십을 진행한
+  [이름]입니다. 오늘은 제가 개발한 '서류 추적기'를 소개하겠습니다.】
+
+- This is an internal web platform I built for the SparkLabs investment team.
+- [자신 있게 말하기 — first impression matters]
+
+
+────────────────────────────────────────────────────────────────────
+SLIDE 2 — 목차   (약 20초)
+────────────────────────────────────────────────────────────────────
+
+- Quickly walk through the agenda — 7 sections + live demo at the end.
+- "오늘 발표는 크게 7개 파트로 나뉘어 있고, 마지막에 실제 사이트를 직접 시연합니다."
+
+
+────────────────────────────────────────────────────────────────────
+SLIDE 3 — 웹사이트 소개   (약 1분)
+────────────────────────────────────────────────────────────────────
+
+【이 플랫폼은 스파크랩 투자팀을 위한 내부 웹 서비스로,
+  투자 계약서 작성과 서류 관리를 자동화하는 것을 목표로 개발했습니다.】
+
+- Main function: auto-generate investment agreements (RCPS & SAFE)
+  - RCPS = 상환전환우선주 투자계약서 (convertible preferred stock)
+  - SAFE = 조건부지분인수계약서 (conditional equity acquisition)
+- Also tracks all deals in one place + links to Google Drive
+- Built with Next.js, deployed on Vercel — accessible from anywhere
+- Tech stack on the right — Next.js, TypeScript, Tailwind, Google Drive API
+
+[Point to the tech stack card on the right side of the slide]
+
+
+────────────────────────────────────────────────────────────────────
+SLIDE 4 — 기존 업무의 문제점   (약 1분 30초)
+────────────────────────────────────────────────────────────────────
+
+【이 플랫폼을 개발하기 전, 투자 계약서 한 건을 작성하는 데
+  평균 2~3시간이 소요됐습니다.】
+
+- Why? Everything was manual:
+  - Open a Word template → fill in every blank by hand
+  - Same info (company name, date, amount) typed over and over in multiple places
+  - Human review needed for every typo or missing field
+  - Files scattered across emails and Drive folders — hard to track
+  - Each team member might have a different version of the template
+
+【특히 같은 정보를 계약서의 여러 곳에 반복 입력해야 한다는 점이
+  시간 낭비의 가장 큰 원인이었습니다.】
+
+[Point at the big "2~3시간" number — let it land]
+
+
+────────────────────────────────────────────────────────────────────
+SLIDE 5 — 개발 프로그램의 장점   (약 1분 30초)
+────────────────────────────────────────────────────────────────────
+
+- Here's how the platform solves those problems — 6 core benefits.
+
+【첫 번째, 반복 입력 제거입니다. 회사명이나 날짜 같은 정보를 한 번만 입력하면,
+  계약서 전체에 자동으로 채워집니다.】
+
+- Second: error reduction — missing fields show up as blank, so nothing gets missed
+- Third: standard terms come pre-filled with SparkLabs defaults — no need to look them up
+  - e.g. preferred dividend rate 1%, late payment rate 12%, etc.
+- Fourth: one-click download — finished contract as a .docx file instantly
+- Fifth: Google Drive auto-integration — folder created automatically for each deal
+- Sixth: everything in one place — no more hunting through emails
+
+[Walk through the 6 cards on screen, briefly touch each one]
+
+
+────────────────────────────────────────────────────────────────────
+SLIDE 6 — 이용 방법 ① 딜 목록   (약 1분)
+────────────────────────────────────────────────────────────────────
+
+- First tab: the deal list — this is the main dashboard.
+- You can see all active deals at a glance — filter by fund or status
+- Add a new deal, edit existing deal info
+- Jump straight to the agreement tab or open the Drive folder
+
+【딜 목록 탭은 투자 파이프라인 전체를 한눈에 확인할 수 있는 메인 화면입니다.】
+
+[The right side shows a screenshot placeholder — explain you'll show the real thing in the demo]
+
+
+────────────────────────────────────────────────────────────────────
+SLIDE 7 — 이용 방법 ② RCPS 계약서   (약 1분)
+────────────────────────────────────────────────────────────────────
+
+【RCPS 계약서 탭에서는 상환전환우선주 투자계약서를 자동으로 생성할 수 있습니다.】
+
+- The template has 69 blanks — the platform fills all of them automatically
+- Repeated values (date, party names, addresses) typed once → appear everywhere
+  - Preamble, signature block, Appendix 1, Appendix 2 — all filled
+- 5 sections: dates / parties / investment terms / notices / standard terms
+- Download as .docx when done
+
+- Standard terms have defaults already filled in — you only change what's different
+
+
+────────────────────────────────────────────────────────────────────
+SLIDE 8 — 이용 방법 ③ SAFE 계약서   (약 45초)
+────────────────────────────────────────────────────────────────────
+
+- Same idea as RCPS, but for SAFE agreements.
+
+【SAFE 계약서는 조건부지분인수계약서로, 40개의 빈칸을 자동으로 채웁니다.】
+
+- Includes valuation cap, discount rate, payment deadline, interested party info
+- 8 sections — parties / investment terms / standard terms / sig blocks / appendices
+- Interested party info fills both Appendix 1 and Appendix 3 at the same time
+
+
+────────────────────────────────────────────────────────────────────
+SLIDE 9 — 이용 방법 ④ 서류 업로드 & Drive   (약 1분)
+────────────────────────────────────────────────────────────────────
+
+- Two things on this slide: file upload + Google Drive integration.
+
+【서류 업로드 탭에서는 계약서나 관련 서류를 웹사이트에 직접 업로드할 수 있습니다.
+  업로드된 파일은 Google Drive 폴더에 자동으로 미러링됩니다.】
+
+- Files stored securely on Vercel Blob (private — not public)
+- Drive side: one button → automatically creates a folder for that deal
+  - Organized under the fund's parent folder (SKF4 / CJftr / Firststep)
+  - Automatically shared with the entire @sparklabs.co.kr team
+- Can also delete a folder if created by mistake — with a confirmation step
+
+
+────────────────────────────────────────────────────────────────────
+SLIDE 10 — 성과   (약 1분)
+────────────────────────────────────────────────────────────────────
+
+[Let the slide speak — pause for 3-4 seconds before talking]
+
+【기존에 2~3시간이 걸리던 계약서 작성이, 이제 약 3분으로 줄었습니다.
+  약 97% 이상의 시간이 단축된 것입니다.】
+
+- This is for one contract — and teams process multiple deals per month
+- Beyond just time: fewer errors, consistent templates across the team
+- No more separate tracking work — it's all in one place
+
+[Point at the green "~3분" box — let it sink in]
+
+
+────────────────────────────────────────────────────────────────────
+SLIDE 11 — AI 도구   (약 1분)
+────────────────────────────────────────────────────────────────────
+
+- Three main AI tools I used to build this:
+
+【첫 번째는 Anthropic의 Claude입니다. 코드 작성, 디버깅, 그리고 복잡한 기능 설계에
+  활용했습니다.】
+
+- Claude (model: claude-sonnet-4-6) — used for basically everything:
+  writing code, fixing bugs, figuring out complex DOCX XML manipulation
+
+- Claude Code — AI coding assistant as a CLI tool
+  - I could run it in the terminal, it would read and edit files directly
+  - Made development much faster — I could describe what I wanted in plain language
+
+- Vercel AI SDK — used for streaming AI responses in the frontend (future use)
+
+- Dev stack at the bottom — all the technologies used together
+
+
+────────────────────────────────────────────────────────────────────
+SLIDE 12 — 한계점 & 향후 과제   (약 1분 30초)
+────────────────────────────────────────────────────────────────────
+
+【아직 개선해야 할 점도 많습니다.】
+
+현재 한계점 (left side):
+- Template updates are manual — if legal language changes, someone has to edit the XML directly
+- Multiple interested parties not yet supported (currently only one per deal)
+- Mobile not fully optimized
+- No e-signature yet — still need wet signatures
+- No user permission management — everyone sees everything
+
+향후 추가할 기능 (right side):
+
+【앞으로는 이메일 알림 기능, 전자서명 연동, 그리고 AI 기반 계약서 검토 기능을
+  추가하고 싶습니다.】
+
+- Email notifications when a contract is sent or signed
+- DocuSign or equivalent e-signature integration
+- AI-powered contract review — flag unusual clauses automatically
+- Fund-level statistics dashboard
+- Version control for contracts (track changes over time)
+
+
+────────────────────────────────────────────────────────────────────
+SLIDE 13 — 라이브 데모   (약 4~5분)
+────────────────────────────────────────────────────────────────────
+
+【이제 실제 웹사이트를 직접 시연해 보겠습니다.】
+
+DEMO FLOW — follow this order:
+
+  1. Open the website in browser (already logged in)
+
+  2. Deal list tab:
+     - "딜 목록 탭에서 현재 등록된 딜들을 확인할 수 있습니다."
+     - Show filtering / clicking into a deal
+
+  3. RCPS agreement tab:
+     - "RCPS 계약서 작성 탭입니다. 정보를 입력하면 자동으로 계약서가 완성됩니다."
+     - Type in company name → show it auto-fill in multiple places
+     - Fill in a few standard fields (date, investment amount)
+     - Hit download → show the .docx
+
+  4. Google Drive:
+     - "Google Drive 연동 버튼을 클릭하면 딜별 폴더가 자동으로 생성됩니다."
+     - Click "Drive 폴더 생성" → show folder appearing
+
+  5. Wrap up:
+     【이상으로 발표를 마치겠습니다. 질문 있으시면 말씀해 주세요. 감사합니다.】
+
+
+══════════════════════════════════════════════════════════════════════
+  BACKUP — 예상 질문 & 답변
+══════════════════════════════════════════════════════════════════════
+
+Q: 보안은 어떻게 처리했나요?
+A: "웹사이트 접근은 스파크랩 계정(Google OAuth)으로만 가능합니다.
+   파일은 Vercel Blob에 비공개로 저장되며, Drive 폴더도 내부 팀에만 공유됩니다."
+
+Q: 계약서 템플릿을 수정하려면 어떻게 해야 하나요?
+A: "현재는 DOCX 파일의 XML을 직접 수정해야 합니다.
+   향후에는 웹 UI에서 관리자가 직접 수정할 수 있도록 개선할 계획입니다."
+
+Q: AI를 어떻게 활용했나요?
+A: "Claude AI를 이용해서 코드 작성, 디버깅, 그리고 복잡한 문제 해결을 했습니다.
+   저는 프로그래밍 경험이 없었는데, AI 덕분에 이런 플랫폼을 개발할 수 있었습니다."
+
+Q: 얼마나 걸려서 만들었나요?
+A: "약 [N]주 동안 개발했습니다. 처음에는 기본 기능부터 시작해서
+   점차 계약서 자동화, Drive 연동 등의 기능을 추가했습니다."

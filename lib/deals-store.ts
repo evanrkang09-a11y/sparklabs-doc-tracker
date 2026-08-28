@@ -15,7 +15,7 @@
 
 import { get, put } from "@vercel/blob";
 import { SEED_DEALS, toDealId, type Batch, type Deal } from "./deals";
-import { isKnownFundId } from "./funds";
+import { isValidFundId } from "./funds-store";
 
 const PATH = "config/deals.json";
 
@@ -90,7 +90,7 @@ export async function createDeal(input: NewDeal): Promise<Deal> {
     market: input.market,
     dealType: input.dealType,
     batchId: input.batchId,
-    fundId: isKnownFundId(input.fundId) ? input.fundId : null,
+    fundId: (await isValidFundId(input.fundId)) ? input.fundId : null,
     archived: false,
     createdAt: new Date().toISOString(),
   };
@@ -203,10 +203,23 @@ function sanitize(raw: unknown): Registry {
           // Drop a reference to a batch that no longer exists, rather than
           // rendering a company under a heading that isn't there.
           batchId: deal.batchId && batchIds.has(deal.batchId) ? deal.batchId : null,
-          // Same for the fund - drop an unknown id rather than trust it.
-          fundId: isKnownFundId(deal.fundId) ? deal.fundId : null,
+          // Accept any non-empty string fundId (both seed funds and dynamically
+          // created ones). Validation happens at create/update time.
+          fundId: typeof deal.fundId === "string" && deal.fundId ? deal.fundId : null,
           archived: deal.archived === true,
           createdAt: typeof deal.createdAt === "string" ? deal.createdAt : "",
+          driveFolderId: typeof deal.driveFolderId === "string" && deal.driveFolderId
+            ? deal.driveFolderId
+            : undefined,
+          initialDocsFolderId: typeof deal.initialDocsFolderId === "string" && deal.initialDocsFolderId
+            ? deal.initialDocsFolderId
+            : undefined,
+          execDocsFolderId: typeof deal.execDocsFolderId === "string" && deal.execDocsFolderId
+            ? deal.execDocsFolderId
+            : undefined,
+          affiliationDate: typeof deal.affiliationDate === "string" && deal.affiliationDate
+            ? deal.affiliationDate
+            : undefined,
         }))
     : [];
 

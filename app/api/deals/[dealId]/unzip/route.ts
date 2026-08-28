@@ -9,6 +9,7 @@
  * the operation can be repeated; deleting it first would lose the documents.
  */
 
+import { auth } from "@/auth";
 import { describe } from "@/lib/errors";
 import { getDeal } from "@/lib/deals-store";
 import { unzip } from "@/lib/unzip";
@@ -18,6 +19,11 @@ export async function POST(
   request: Request,
   context: { params: Promise<{ dealId: string }> },
 ) {
+  const session = await auth();
+  if (!session?.user || session.user.role === "startup") {
+    return Response.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   const { dealId } = await context.params;
   if (!(await getDeal(dealId))) {
     return Response.json({ error: `Unknown deal: ${dealId}` }, { status: 404 });

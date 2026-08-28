@@ -47,6 +47,14 @@ export type Deal = {
    * actually uploaded.
    */
   readsSampleDriveFolder?: boolean;
+  /** Google Drive folder ID for this company's documents. Created on demand. */
+  driveFolderId?: string;
+  /** Sub-folder for pre-investment documents inside driveFolderId. */
+  initialDocsFolderId?: string;
+  /** Sub-folder for post-payment execution documents inside driveFolderId. */
+  execDocsFolderId?: string;
+  /** Date SparkLabs first affiliated with this company (ISO date string YYYY-MM-DD). */
+  affiliationDate?: string;
 };
 
 /**

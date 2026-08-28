@@ -49,14 +49,14 @@ export default function AssistantWidget() {
     ? [
         "국내 투자 전 제출 서류 알려줘",
         "실사에서 정관은 뭘 확인해?",
-        "투자납입 후 서류 회신 기한은?",
         "SAFE 지분 전환 절차 알려줘",
+        dealId ? `${dealId} 회사에 대해 알려줘` : "스타트업 밸류에이션 방법 설명해줘",
       ]
     : [
         "Documents needed before a domestic investment?",
         "What do we check in the articles during DD?",
-        "Deadline for post-payment documents?",
         "Walk me through the SAFE conversion",
+        dealId ? `Tell me about ${dealId}` : "How does startup valuation work?",
       ];
 
   async function send(text: string) {
@@ -94,7 +94,7 @@ export default function AssistantWidget() {
           <div className="flex items-center justify-between gap-2 border-b border-neutral-200 bg-indigo-600 px-4 py-3 text-white dark:border-neutral-800">
             <div className="min-w-0">
               <p className="text-sm font-semibold">
-                {ko ? "프로세스 도우미" : "Process assistant"}
+                {ko ? "AI 도우미" : "Assistant"}
               </p>
               <p className="truncate text-[10px] text-indigo-200">
                 {dealId
@@ -102,8 +102,8 @@ export default function AssistantWidget() {
                     ? `이 딜 정보 참고 중 · ${dealId}`
                     : `Using this deal · ${dealId}`
                   : ko
-                    ? "투자 프로세스 질문에 답합니다"
-                    : "Answers about the investment process"}
+                    ? "프로세스·기업·투자 질문 모두 가능"
+                    : "Ask anything — process, companies, deals"}
               </p>
             </div>
             <div className="flex shrink-0 items-center gap-1">
@@ -212,7 +212,7 @@ export default function AssistantWidget() {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        aria-label={ko ? "프로세스 도우미 열기" : "Open process assistant"}
+        aria-label={ko ? "AI 도우미 열기" : "Open assistant"}
         className="ml-auto flex h-14 w-14 items-center justify-center rounded-full bg-indigo-600 text-white shadow-lg transition-all hover:bg-indigo-700 hover:shadow-xl active:scale-95"
       >
         {open ? (

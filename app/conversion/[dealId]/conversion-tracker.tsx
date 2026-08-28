@@ -100,6 +100,22 @@ export default function ConversionTracker({
   const preDone = CONVERSION_PRE_DOCS.filter((d) => record.preChecks[d.id]).length;
   const postDone = CONVERSION_POST_DOCS.filter((d) => record.postChecks[d.id]).length;
 
+  function setStepComment(id: string, text: string) {
+    const next = { ...record.stepComments };
+    if (text) next[id] = text; else delete next[id];
+    update({ stepComments: next });
+  }
+  function setPreComment(id: string, text: string) {
+    const next = { ...record.preComments };
+    if (text) next[id] = text; else delete next[id];
+    update({ preComments: next });
+  }
+  function setPostComment(id: string, text: string) {
+    const next = { ...record.postComments };
+    if (text) next[id] = text; else delete next[id];
+    update({ postComments: next });
+  }
+
   const regDeadlines = useMemo(
     () => conversionDeadlines(record.fractionalPaymentDate),
     [record.fractionalPaymentDate],
@@ -121,7 +137,7 @@ export default function ConversionTracker({
   const estimate = useMemo(() => estimateConversion(record.calc), [record.calc]);
 
   return (
-    <div className="mx-auto w-full max-w-4xl px-4 py-6">
+    <div className="w-full px-6 py-6">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold tracking-tight">
@@ -224,11 +240,17 @@ export default function ConversionTracker({
             {stepsDone}/{CONVERSION_STEPS.length}
           </span>
         </div>
+        <div className="mb-3 h-1.5 overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-800">
+          <div
+            className={`h-full rounded-full transition-all duration-500 ${stepsDone === CONVERSION_STEPS.length ? "bg-emerald-500" : "bg-indigo-500"}`}
+            style={{ width: `${CONVERSION_STEPS.length > 0 ? (stepsDone / CONVERSION_STEPS.length) * 100 : 0}%` }}
+          />
+        </div>
         <ul className="space-y-1.5">
-          {CONVERSION_STEPS.map((step) => {
+          {CONVERSION_STEPS.map((step, index) => {
             const checked = record.stepChecks[step.id] === true;
             return (
-              <li key={step.id}>
+              <li key={step.id} className={`rounded-lg border transition-colors ${checked ? "border-emerald-200 bg-emerald-50/60 dark:border-emerald-900/60 dark:bg-emerald-950/20" : "border-neutral-200 dark:border-neutral-800"}`}>
                 <button
                   type="button"
                   onClick={() =>
@@ -236,18 +258,18 @@ export default function ConversionTracker({
                       stepChecks: { ...record.stepChecks, [step.id]: !checked },
                     })
                   }
-                  className="flex w-full items-start gap-3 rounded-lg border border-neutral-200 px-3 py-2 text-left transition-colors hover:bg-neutral-50 dark:border-neutral-800 dark:hover:bg-neutral-900/60"
+                  className="flex w-full items-start gap-3 px-3 py-2 text-left transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-900/60"
                 >
                   <span
                     aria-hidden
-                    className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white ${
-                      checked ? "bg-emerald-500" : "bg-neutral-300 dark:bg-neutral-600"
+                    className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white ${
+                      checked ? "bg-emerald-500" : "bg-neutral-400 dark:bg-neutral-600"
                     }`}
                   >
-                    {checked ? "✓" : ""}
+                    {checked ? "✓" : String(index + 1)}
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block text-sm font-medium">
+                    <span className={`block text-sm font-medium ${checked ? "text-neutral-400 line-through dark:text-neutral-500" : ""}`}>
                       {pick(step.titleKo, step.titleEn)}
                     </span>
                     {(step.noteKo || step.noteEn) && (
@@ -257,6 +279,20 @@ export default function ConversionTracker({
                     )}
                   </span>
                 </button>
+                <div className="px-3 pb-2 pl-11">
+                  <textarea
+                    value={record.stepComments[step.id] ?? ""}
+                    onChange={(e) => setStepComment(step.id, e.target.value)}
+                    placeholder={ko ? "메모 추가…" : "Add a note…"}
+                    rows={1}
+                    className="w-full resize-none rounded border border-neutral-200 bg-neutral-50 px-2 py-1 text-[11px] text-neutral-900 placeholder:text-neutral-400 focus:border-neutral-400 focus:outline-none dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-100"
+                    onInput={(e) => {
+                      const t = e.currentTarget;
+                      t.style.height = "auto";
+                      t.style.height = `${t.scrollHeight}px`;
+                    }}
+                  />
+                </div>
               </li>
             );
           })}
@@ -273,6 +309,9 @@ export default function ConversionTracker({
         onToggle={(id) =>
           update({ preChecks: { ...record.preChecks, [id]: !record.preChecks[id] } })
         }
+        comments={record.preComments}
+        onComment={setPreComment}
+        ko={ko}
         pick={pick}
       />
 
@@ -300,6 +339,9 @@ export default function ConversionTracker({
         onToggle={(id) =>
           update({ postChecks: { ...record.postChecks, [id]: !record.postChecks[id] } })
         }
+        comments={record.postComments}
+        onComment={setPostComment}
+        ko={ko}
         pick={pick}
       />
 
@@ -330,6 +372,7 @@ export default function ConversionTracker({
       {/* Email draft */}
       <EmailDraft
         company={pick(deal.companyKo, deal.companyEn)}
+        dealId={deal.id}
         docs={CONVERSION_POST_DOCS}
         deadlines={docDeadlines}
         ko={ko}
@@ -355,9 +398,8 @@ function DateField({
     <div>
       <label className="block text-[11px] font-medium text-neutral-500">{label}</label>
       <input
-        type="text"
+        type="date"
         value={value}
-        placeholder="YYYY-MM-DD"
         onChange={(e) => onChange(e.target.value)}
         className={inputClass}
       />
@@ -404,30 +446,43 @@ function DeadlineCard({
   const daysToMax = Math.ceil((d.max.getTime() - now) / dayMs);
   const tone =
     daysToMax < 0
-      ? "border-red-300 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300"
+      ? "border-red-300 bg-red-50 dark:border-red-900 dark:bg-red-950/40"
       : daysToMax <= 10
-        ? "border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200"
-        : "border-emerald-300 bg-emerald-50 text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200";
+        ? "border-amber-300 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/40"
+        : "border-emerald-300 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/40";
+  const numColor =
+    daysToMax < 0
+      ? "text-red-700 dark:text-red-300"
+      : daysToMax <= 10
+        ? "text-amber-700 dark:text-amber-300"
+        : "text-emerald-700 dark:text-emerald-300";
+  const textColor =
+    daysToMax < 0
+      ? "text-red-800 dark:text-red-300"
+      : daysToMax <= 10
+        ? "text-amber-900 dark:text-amber-200"
+        : "text-emerald-900 dark:text-emerald-200";
   const fmt = (x: Date) => x.toISOString().slice(0, 10);
+
   return (
     <section className={`rounded-xl border px-4 py-3 shadow-sm ${tone}`}>
-      <p className="text-sm font-semibold">{title}</p>
-      <p className="text-[10px] opacity-70">{subtitle}</p>
-      <p className="mt-1 text-xs">
-        {ko ? "권장 " : "Ideal "}
-        {fmt(d.ideal)} {ko ? "(2주)" : "(2wk)"} · {ko ? "보통 " : "Normal "}
-        {fmt(d.normal)} · {ko ? "최대 " : "Max "}
-        {fmt(d.max)}
-      </p>
-      <p className="mt-1 text-xs">
-        {daysToMax < 0
-          ? ko
-            ? `최대 기한 ${Math.abs(daysToMax)}일 초과`
-            : `${Math.abs(daysToMax)} days past max`
-          : ko
-            ? `최대 기한까지 ${daysToMax}일`
-            : `${daysToMax} days to max`}
-      </p>
+      <div className="flex items-center gap-3">
+        <div className="text-center">
+          <p className={`text-3xl font-bold tabular-nums leading-none ${numColor}`}>
+            {Math.abs(daysToMax)}
+          </p>
+          <p className={`mt-0.5 text-[10px] font-medium ${textColor}`}>
+            {daysToMax < 0 ? (ko ? "일 초과" : "over") : (ko ? "일 남음" : "days")}
+          </p>
+        </div>
+        <div className="flex-1">
+          <p className={`text-sm font-semibold ${textColor}`}>{title}</p>
+          <p className={`text-[10px] opacity-70 ${textColor}`}>{subtitle}</p>
+          <p className={`mt-1 text-[11px] ${textColor}`}>
+            {ko ? "권장 " : "Ideal "}{fmt(d.ideal)} · {ko ? "최대 " : "Max "}{fmt(d.max)}
+          </p>
+        </div>
+      </div>
     </section>
   );
 }
@@ -439,6 +494,9 @@ function DocChecklist({
   checks,
   done,
   onToggle,
+  comments,
+  onComment,
+  ko,
   pick,
 }: {
   title: string;
@@ -447,40 +505,62 @@ function DocChecklist({
   checks: Record<string, boolean>;
   done: number;
   onToggle: (id: string) => void;
+  comments?: Record<string, string>;
+  onComment?: (id: string, text: string) => void;
+  ko?: boolean;
   pick: (ko: string, en: string) => string;
 }) {
+  const total = docs.length;
+  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+  const complete = total > 0 && done === total;
+
   return (
     <section className="mb-5 rounded-xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
       <div className="mb-1 flex items-baseline justify-between gap-3">
         <h2 className="text-sm font-semibold">{title}</h2>
-        <span className="text-xs text-neutral-400">
-          {done}/{docs.length}
+        <span className={`text-xs font-medium tabular-nums ${complete ? "text-emerald-600 dark:text-emerald-400" : "text-neutral-400"}`}>
+          {done}/{total} · {pct}%
         </span>
       </div>
-      <p className="mb-3 text-[11px] text-neutral-400">{subtitle}</p>
+      <p className="mb-2 text-[11px] text-neutral-400">{subtitle}</p>
+      <div className="mb-3 h-1.5 overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-800">
+        <div
+          className={`h-full rounded-full transition-all duration-500 ${complete ? "bg-emerald-500" : "bg-indigo-500"}`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
       <ul className="space-y-1.5">
-        {docs.map((doc) => {
+        {docs.map((doc, index) => {
           const checked = checks[doc.id] === true;
           const copies = pick(doc.copiesKo ?? "", doc.copiesEn ?? "");
           const note = pick(doc.noteKo ?? "", doc.noteEn ?? "");
           return (
-            <li key={doc.id}>
+            <li
+              key={doc.id}
+              className={`rounded-lg border transition-colors ${
+                checked
+                  ? "border-emerald-200 bg-emerald-50/60 dark:border-emerald-900/60 dark:bg-emerald-950/20"
+                  : "border-neutral-200 dark:border-neutral-800"
+              }`}
+            >
               <button
                 type="button"
                 onClick={() => onToggle(doc.id)}
-                className="flex w-full items-start gap-3 rounded-lg border border-neutral-200 px-3 py-2 text-left transition-colors hover:bg-neutral-50 dark:border-neutral-800 dark:hover:bg-neutral-900/60"
+                className="flex w-full items-start gap-3 px-3 py-2 text-left"
               >
                 <span
                   aria-hidden
-                  className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white ${
-                    checked ? "bg-emerald-500" : "bg-neutral-300 dark:bg-neutral-600"
+                  className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white ${
+                    checked ? "bg-emerald-500" : "bg-neutral-400 dark:bg-neutral-600"
                   }`}
                 >
-                  {checked ? "✓" : ""}
+                  {checked ? "✓" : String(index + 1)}
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="flex flex-wrap items-center gap-1.5">
-                    <span className="text-sm">{pick(doc.nameKo, doc.nameEn)}</span>
+                    <span className={`text-sm ${checked ? "text-neutral-400 line-through dark:text-neutral-500" : ""}`}>
+                      {pick(doc.nameKo, doc.nameEn)}
+                    </span>
                     {copies && (
                       <span className="rounded bg-neutral-100 px-1.5 py-0.5 text-[10px] font-medium text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400">
                         {copies}
@@ -492,6 +572,22 @@ function DocChecklist({
                   )}
                 </span>
               </button>
+              {onComment && (
+                <div className="px-3 pb-2 pl-11">
+                  <textarea
+                    value={comments?.[doc.id] ?? ""}
+                    onChange={(e) => onComment(doc.id, e.target.value)}
+                    placeholder={ko ? "메모 추가…" : "Add a note…"}
+                    rows={1}
+                    className="w-full resize-none rounded border border-neutral-200 bg-neutral-50 px-2 py-1 text-[11px] text-neutral-900 placeholder:text-neutral-400 focus:border-neutral-400 focus:outline-none dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-100"
+                    onInput={(e) => {
+                      const t = e.currentTarget;
+                      t.style.height = "auto";
+                      t.style.height = `${t.scrollHeight}px`;
+                    }}
+                  />
+                </div>
+              )}
             </li>
           );
         })}
@@ -623,23 +719,19 @@ function CalculatorSection({
         )}
       </div>
 
-      <div className="mt-3 flex flex-wrap gap-4 rounded-lg bg-neutral-50 px-3 py-2.5 text-sm dark:bg-neutral-950">
-        <span>
-          <span className="text-[11px] text-neutral-400">
-            {ko ? "전환가 " : "Conversion price "}
-          </span>
-          <span className="font-semibold tabular-nums">
+      <div className="mt-3 grid grid-cols-2 gap-3">
+        <div className="rounded-lg bg-neutral-50 px-3 py-2.5 dark:bg-neutral-950">
+          <p className="text-[11px] text-neutral-400">{ko ? "전환가" : "Conversion price"}</p>
+          <p className="mt-0.5 text-xl font-bold tabular-nums text-neutral-800 dark:text-neutral-100">
             {estimate.conversionPrice != null ? fmt(estimate.conversionPrice) : "—"}
-          </span>
-        </span>
-        <span>
-          <span className="text-[11px] text-neutral-400">
-            {ko ? "예상 주식수 " : "Estimated shares "}
-          </span>
-          <span className="font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">
+          </p>
+        </div>
+        <div className="rounded-lg bg-emerald-50 px-3 py-2.5 dark:bg-emerald-950/30">
+          <p className="text-[11px] text-emerald-600 dark:text-emerald-400">{ko ? "예상 주식수" : "Estimated shares"}</p>
+          <p className="mt-0.5 text-xl font-bold tabular-nums text-emerald-700 dark:text-emerald-300">
             {estimate.shares != null ? fmt(estimate.shares) : "—"}
-          </span>
-        </span>
+          </p>
+        </div>
       </div>
     </section>
   );
@@ -647,18 +739,23 @@ function CalculatorSection({
 
 function EmailDraft({
   company,
+  dealId,
   docs,
   deadlines,
   ko,
   pick,
 }: {
   company: string;
+  dealId: string;
   docs: ConversionDoc[];
   deadlines: { ideal: Date; normal: Date; max: Date } | null;
   ko: boolean;
   pick: (ko: string, en: string) => string;
 }) {
   const [copied, setCopied] = useState(false);
+  const [to, setTo] = useState("");
+  const [suggesting, setSuggesting] = useState(false);
+  const [suggestHint, setSuggestHint] = useState<string | null>(null);
   const fmt = (d: Date) => d.toISOString().slice(0, 10);
 
   const list = docs
@@ -702,6 +799,42 @@ ${list}
 
 Thank you.`;
 
+  const subject = ko
+    ? `[${company}] SAFE 전환 후 제출 서류 안내`
+    : `[${company}] Documents required after SAFE conversion`;
+
+  function sendEmail() {
+    navigator.clipboard.writeText(draft).catch(() => {});
+    const params = new URLSearchParams({
+      view: "cm",
+      fs: "1",
+      to: to,
+      su: subject,
+    });
+    window.open(`https://mail.google.com/mail/?${params.toString()}`, "_blank");
+    setCopied(true);
+    setTimeout(() => setCopied(false), 4000);
+  }
+
+  async function suggestEmail() {
+    setSuggesting(true);
+    setSuggestHint(null);
+    try {
+      const res = await fetch(`/api/deals/${dealId}/suggest-email`, { method: "POST" });
+      const data = await res.json().catch(() => null);
+      if (data?.email) {
+        setTo(data.email);
+        setSuggestHint(ko ? "✓ 이메일 자동입력 완료" : "✓ Email filled in");
+      } else {
+        setSuggestHint(ko ? "업로드된 서류에서 이메일을 찾지 못했습니다." : "No email found in uploaded documents.");
+      }
+    } catch {
+      setSuggestHint(ko ? "오류가 발생했습니다." : "Something went wrong.");
+    } finally {
+      setSuggesting(false);
+    }
+  }
+
   async function copy() {
     try {
       await navigator.clipboard.writeText(draft);
@@ -716,21 +849,62 @@ Thank you.`;
     <section className="mb-5 rounded-xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
       <h2 className="mb-1 text-sm font-semibold">{ko ? "이메일 초안" : "Email draft"}</h2>
       <p className="mb-3 text-[11px] text-neutral-400">
-        {ko ? "전환 후 서류 요청 이메일. 복사하여 사용하세요." : "Post-conversion document request. Copy to use."}
+        {ko
+          ? "전환 후 서류 요청 이메일. 받는 사람을 입력하고 바로 보낼 수 있습니다."
+          : "Post-conversion document request. Enter a recipient and send directly."}
       </p>
+      <div className="mb-2">
+        <label className="block text-[11px] font-medium text-neutral-500">
+          {ko ? "받는 사람" : "To"}
+        </label>
+        <div className="mt-1 flex gap-2">
+          <input
+            type="email"
+            value={to}
+            onChange={(e) => setTo(e.target.value)}
+            placeholder={ko ? "수신자 이메일 주소" : "recipient@company.com"}
+            className="min-w-0 flex-1 rounded-lg border border-neutral-300 bg-white px-2.5 py-1.5 text-sm focus:border-neutral-500 focus:outline-none dark:border-neutral-700 dark:bg-neutral-950"
+          />
+          <button
+            type="button"
+            onClick={suggestEmail}
+            disabled={suggesting}
+            className="shrink-0 rounded-lg border border-neutral-300 px-2.5 py-1.5 text-xs font-medium transition-colors hover:bg-neutral-100 disabled:opacity-50 dark:border-neutral-700 dark:hover:bg-neutral-800"
+          >
+            {suggesting ? (ko ? "검색 중…" : "Searching…") : (ko ? "AI 자동완성" : "AI Suggest")}
+          </button>
+        </div>
+        {suggestHint && (
+          <p className={`mt-1 text-[11px] ${suggestHint.startsWith("✓") ? "text-emerald-600 dark:text-emerald-400" : "text-neutral-400"}`}>
+            {suggestHint}
+          </p>
+        )}
+      </div>
       <textarea
         readOnly
         value={draft}
         rows={14}
         className="w-full rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 font-mono text-xs text-neutral-700 focus:outline-none dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-300"
       />
-      <button
-        type="button"
-        onClick={copy}
-        className="mt-3 rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-emerald-700"
-      >
-        {copied ? (ko ? "복사됨 ✓" : "Copied ✓") : ko ? "복사" : "Copy"}
-      </button>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={sendEmail}
+          disabled={!to.trim()}
+          className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-indigo-700 disabled:opacity-40"
+        >
+          {copied
+            ? (ko ? "메일 열림 — 본문 붙여넣기 ✓" : "Mail opened — paste body ✓")
+            : (ko ? "이메일 보내기" : "Send email")}
+        </button>
+        <button
+          type="button"
+          onClick={copy}
+          className="rounded-lg border border-neutral-300 px-3 py-1.5 text-sm font-medium transition-colors hover:bg-neutral-50 dark:border-neutral-700 dark:hover:bg-neutral-800"
+        >
+          {copied ? (ko ? "복사됨 ✓" : "Copied ✓") : ko ? "복사" : "Copy"}
+        </button>
+      </div>
     </section>
   );
 }

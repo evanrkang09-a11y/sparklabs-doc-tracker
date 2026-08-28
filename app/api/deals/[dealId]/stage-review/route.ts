@@ -6,6 +6,7 @@
  * missing, deadline risks, and next actions. On-demand only.
  */
 
+import { auth } from "@/auth";
 import { getDeal } from "@/lib/deals-store";
 import { describe } from "@/lib/errors";
 import { isAiConfigured } from "@/lib/analysis";
@@ -97,6 +98,11 @@ export async function POST(
   request: Request,
   context: { params: Promise<{ dealId: string }> },
 ) {
+  const session = await auth();
+  if (!session?.user || session.user.role === "startup") {
+    return Response.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   const { dealId } = await context.params;
   const deal = await getDeal(dealId);
   if (!deal) return Response.json({ error: `Unknown deal: ${dealId}` }, { status: 404 });

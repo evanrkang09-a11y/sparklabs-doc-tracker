@@ -7,9 +7,11 @@ import { readDiligence } from "@/lib/diligence-store";
 import { readAgreement } from "@/lib/agreement-store";
 import { readExecution } from "@/lib/execution-store";
 import { readConversion } from "@/lib/conversion-store";
+import { getTimeline } from "@/lib/deal-timeline";
 import { allDiligenceItems } from "@/lib/diligence";
 import { getContract } from "@/lib/contracts";
 import SiteHeader from "@/app/site-header";
+import LogPageView from "@/app/log-page-view";
 import OverviewContent, { type OverviewData } from "./overview-content";
 
 export const metadata: Metadata = {
@@ -25,7 +27,7 @@ export default async function OverviewPage({
   const deal = await getDeal(dealId);
   if (!deal) notFound();
 
-  const [session, status, diligence, agreement, execution, conversion] =
+  const [session, status, diligence, agreement, execution, conversion, timeline] =
     await Promise.all([
       auth(),
       collectDealStatus(deal).catch(() => null),
@@ -33,6 +35,7 @@ export default async function OverviewPage({
       readAgreement(dealId).catch(() => null),
       readExecution(dealId).catch(() => null),
       readConversion(dealId).catch(() => null),
+      getTimeline(dealId).catch(() => ({})),
     ]);
 
   const ddTotal = allDiligenceItems().length;
@@ -78,10 +81,14 @@ export default async function OverviewPage({
         companyEn={deal.companyEn}
         userEmail={session?.user?.email}
       />
+      <LogPageView action={`Viewed overview — ${deal.companyKo || deal.companyEn}`} dealId={deal.id} />
       <OverviewContent
         data={data}
+        deal={deal}
         companyKo={deal.companyKo}
         companyEn={deal.companyEn}
+        agreementSaved={Boolean(agreement?.updatedAt)}
+        initialTimeline={timeline}
       />
     </>
   );

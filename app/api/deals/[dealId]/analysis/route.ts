@@ -8,6 +8,7 @@
  * attached; the tick stays a human decision.
  */
 
+import { auth } from "@/auth";
 import { describe } from "@/lib/errors";
 import { getDeal } from "@/lib/deals-store";
 import { collectDealStatus } from "@/lib/deal-status";
@@ -29,6 +30,9 @@ export async function GET(
   request: Request,
   context: { params: Promise<{ dealId: string }> },
 ) {
+  const session = await auth();
+  if (!session?.user) return Response.json({ error: "Authentication required" }, { status: 401 });
+
   const { dealId } = await context.params;
   if (!(await getDeal(dealId))) {
     return Response.json({ error: `Unknown deal: ${dealId}` }, { status: 404 });
@@ -45,6 +49,11 @@ export async function POST(
   request: Request,
   context: { params: Promise<{ dealId: string }> },
 ) {
+  const session = await auth();
+  if (!session?.user || session.user.role === "startup") {
+    return Response.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   const { dealId } = await context.params;
   const deal = await getDeal(dealId);
 

@@ -162,6 +162,21 @@ export function postPaymentDocs(
 }
 
 /**
+ * Matches a filename against the execution doc list using keyword matching.
+ * Returns the doc ID of the first match, or null if no match.
+ */
+export function matchExecDoc(filename: string, docs: ExecutionDoc[]): string | null {
+  const lower = filename.toLowerCase().replace(/[._\-()[\]0-9]/g, " ");
+  for (const doc of docs) {
+    const enWords = doc.nameEn.toLowerCase().split(/\s+/).filter((w) => w.length >= 4);
+    if (enWords.length > 0 && enWords.some((w) => lower.includes(w))) return doc.id;
+    const koWords = doc.nameKo.split(/[\s·]+/).filter((w) => w.length >= 2);
+    if (koWords.some((w) => filename.includes(w))) return doc.id;
+  }
+  return null;
+}
+
+/**
  * From the payment date, when the returned documents are due.
  *
  * Originals must reach the custodian bank within 30 days of payment, so 30 is

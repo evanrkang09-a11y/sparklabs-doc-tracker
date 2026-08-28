@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { DEAL_TYPES, type Batch, type DealType } from "@/lib/deals";
-import { FUNDS } from "@/lib/funds";
+import type { Fund } from "@/lib/funds";
 import type { Market } from "@/lib/documents";
 import { T } from "@/lib/i18n";
 import { describe } from "@/lib/errors";
@@ -29,8 +29,16 @@ export default function AddCompanyForm({
   const [newBatchName, setNewBatchName] = useState("");
   const [addingBatch, setAddingBatch] = useState(false);
 
+  const [funds, setFunds] = useState<Fund[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/funds")
+      .then((r) => r.json())
+      .then((data) => { if (Array.isArray(data)) setFunds(data); })
+      .catch(() => {});
+  }, []);
 
   async function post(body: unknown) {
     const response = await fetch("/api/companies", {
@@ -165,7 +173,7 @@ export default function AddCompanyForm({
             className={field}
           >
             <option value="">{lang === "ko" ? "미배정" : "Unassigned"}</option>
-            {FUNDS.map((fund) => (
+            {funds.map((fund) => (
               <option key={fund.id} value={fund.id}>
                 {fund.name} · {fund.category}
               </option>

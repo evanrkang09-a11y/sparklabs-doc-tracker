@@ -5,7 +5,7 @@
  * The template (templates/safe-agreement.docx) was tokenised by
  * scripts-style verification (each {{sN}} was placed at a blank matched by its
  * unique surrounding text, and the placement was verified to occur exactly
- * once). Tokens s1–s15 correspond to the fields below.
+ * once). Tokens s1–s38 correspond to the fields below.
  *
  * Draft — the mentor should review the first generated SAFE .docx before it is
  * used for a real deal. Signature-block cells and appendix boilerplate are left
@@ -95,6 +95,46 @@ export const SAFE_GROUPS: AgreementGroup[] = [
         kind: "text",
         tokens: ["s8"],
       },
+      {
+        id: "accountBank",
+        labelKo: "입금계좌 은행",
+        labelEn: "Deposit account — bank",
+        kind: "text",
+        tokens: ["s34"],
+        hintKo: "예: 기업은행, 국민은행",
+        hintEn: "E.g. IBK, Kookmin",
+      },
+      {
+        id: "accountNumber",
+        labelKo: "입금계좌 번호",
+        labelEn: "Deposit account — number",
+        kind: "text",
+        tokens: ["s35"],
+      },
+      {
+        id: "paymentYear",
+        labelKo: "투자금 납입기한 — 연도",
+        labelEn: "Investment payment deadline — year",
+        kind: "year",
+        tokens: ["s36"],
+        default: "2026",
+        hintKo: "이 날까지 납입하지 않으면 계약 해제 사유가 됩니다",
+        hintEn: "Missing this date is grounds for termination",
+      },
+      {
+        id: "paymentMonth",
+        labelKo: "투자금 납입기한 — 월",
+        labelEn: "Investment payment deadline — month",
+        kind: "number",
+        tokens: ["s37"],
+      },
+      {
+        id: "paymentDay",
+        labelKo: "투자금 납입기한 — 일",
+        labelEn: "Investment payment deadline — day",
+        kind: "number",
+        tokens: ["s38"],
+      },
     ],
   },
   {
@@ -102,6 +142,28 @@ export const SAFE_GROUPS: AgreementGroup[] = [
     titleKo: "3. 표준 조항",
     titleEn: "3. Standard terms",
     fields: [
+      {
+        id: "annualReportDays",
+        labelKo: "연간 재무제표 제출기한 (일)",
+        labelEn: "Annual financials deadline (days)",
+        kind: "number",
+        tokens: ["s39"],
+        default: "60",
+        standard: true,
+        hintKo: "스파크랩 표준 60일 — 회계연도 종료 후 N일 이내 제출",
+        hintEn: "SparkLabs standard is 60 days after fiscal year end",
+      },
+      {
+        id: "quarterlyReportDays",
+        labelKo: "분기 재무제표 제출기한 (일)",
+        labelEn: "Quarterly financials deadline (days)",
+        kind: "number",
+        tokens: ["s40"],
+        default: "45",
+        standard: true,
+        hintKo: "스파크랩 표준 45일 — 분기 종료 후 N일 이내 제출",
+        hintEn: "SparkLabs standard is 45 days after quarter end",
+      },
       {
         id: "useOfFunds",
         labelKo: "투자금 사용목적",
@@ -213,9 +275,54 @@ export const SAFE_GROUPS: AgreementGroup[] = [
     ],
   },
   {
+    id: "safe-interested",
+    titleKo: "7. 이해관계인 (별지1 · 별지3)",
+    titleEn: "7. Interested party (Appendix 1 & 3)",
+    fields: [
+      {
+        id: "interestedName",
+        labelKo: "이해관계인 성명",
+        labelEn: "Interested party — name",
+        kind: "text",
+        // 별지1 주주 동의, 별지3 퇴사제한, 별지3 경업 — one box fills all three.
+        tokens: ["s27", "s28", "s29"],
+        hintKo: "별지1 주주 동의 + 별지3 퇴사제한·경업 성명란에 함께 채워집니다",
+        hintEn: "Fills the name cell in Appendix 1 and both Appendix 3 tables",
+      },
+      {
+        id: "interestedResidentNo",
+        labelKo: "이해관계인 주민등록번호",
+        labelEn: "Interested party — resident reg. no.",
+        kind: "text",
+        tokens: ["s30"],
+        hintKo: "별지1 주주 동의",
+        hintEn: "Appendix 1 shareholder consent",
+      },
+      {
+        id: "interestedBirth",
+        labelKo: "이해관계인 생년월일",
+        labelEn: "Interested party — date of birth",
+        kind: "text",
+        tokens: ["s33"],
+        hintKo: "별지3 I. 퇴사제한 표",
+        hintEn: "Appendix 3 §I resignation-restriction table",
+      },
+      {
+        id: "interestedAddress",
+        labelKo: "이해관계인 주소",
+        labelEn: "Interested party — address",
+        kind: "text",
+        // 별지1 주주 동의 + 별지3 퇴사제한 — one box fills both.
+        tokens: ["s31", "s32"],
+        hintKo: "별지1 주주 동의 + 별지3 퇴사제한 주소란에 함께 채워집니다",
+        hintEn: "Fills the address cell in Appendix 1 and the Appendix 3 §I table",
+      },
+    ],
+  },
+  {
     id: "safe-date",
-    titleKo: "7. 체결일",
-    titleEn: "7. Signing date",
+    titleKo: "8. 체결일",
+    titleEn: "8. Signing date",
     fields: [
       {
         id: "signYear",

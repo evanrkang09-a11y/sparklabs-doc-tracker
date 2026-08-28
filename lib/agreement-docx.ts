@@ -15,6 +15,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { unzipSync, zipSync } from "fflate";
+import { head } from "@vercel/blob";
 import { type AgreementValues } from "./agreement-fields";
 import { getContract, type ContractType } from "./contracts";
 import { readLayout, type DocxLayout } from "./docx-layout";
@@ -53,11 +54,42 @@ function escapeXml(value: string): string {
  */
 const templateCaches = new Map<ContractType, Promise<Record<string, Uint8Array>>>();
 
+export function invalidateTemplateCache(type: ContractType) {
+  templateCaches.delete(type);
+}
+
+function blobKeyForType(type: ContractType): string {
+  const file = getContract(type).templateFile ?? `${type}-agreement.docx`;
+  return `admin/templates/${file}`;
+}
+
+async function loadTemplateBytes(type: ContractType): Promise<Buffer> {
+  // Check Vercel Blob for an admin-uploaded override first.
+  try {
+    const meta = await head(blobKeyForType(type));
+    const res = await fetch(meta.downloadUrl);
+    if (res.ok) {
+      const ab = await res.arrayBuffer();
+      return Buffer.from(ab);
+    }
+  } catch {
+    // No custom template in Blob — fall through to bundled file.
+  }
+  return readFile(templatePath(type));
+}
+
 function templateParts(type: ContractType): Promise<Record<string, Uint8Array>> {
   let cached = templateCaches.get(type);
   if (!cached) {
-    cached = readFile(templatePath(type))
-      .then((buffer) => unzipSync(new Uint8Array(buffer)))
+    cached = loadTemplateBytes(type)
+      .then((buffer) => {
+        const raw = unzipSync(new Uint8Array(buffer));
+        // Zip files created on Windows use backslash paths. Normalize to forward
+        // slashes so lookups like parts["word/document.xml"] always work.
+        return Object.fromEntries(
+          Object.entries(raw).map(([key, value]) => [key.replace(/\\/g, "/"), value]),
+        );
+      })
       .catch((problem) => {
         // Don't cache a failure - a transient read error would otherwise break
         // the feature until the instance recycled.
@@ -84,6 +116,15 @@ export async function fillAgreement(
   const parts = { ...(await templateParts(type)) };
 
   const replacements = getContract(type).spec.tokenValues(values);
+
+  // Also apply any direct token-keyed values saved for tokens that are in the
+  // document but not registered as named fields (orphan tokens). The editor
+  // stores them under the token id itself (e.g. values["r70"] = "...").
+  for (const [key, val] of Object.entries(values)) {
+    if (val?.trim() && replacements[key] === undefined) {
+      replacements[key] = val;
+    }
+  }
   const decoder = new TextDecoder();
   const encoder = new TextEncoder();
   const unfilled = new Set<string>();

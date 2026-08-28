@@ -352,6 +352,34 @@ It's tempting to blame whatever you just wrote, but **the pages that failed had 
 
 **Lesson: look at what the failures have in common.** If it's "everything got slow" rather than "the thing I touched", it's the environment, not the code.
 
+### ⑯ "invalid_grant: account not found" when creating a Drive folder
+
+Clicking "Create Drive Folder" returned `invalid_grant: Invalid grant: account not found`.
+
+The cause: the service account key had been deleted after the 2026-08-11 exposure (§7), but the deleted key was still sitting in the Vercel environment variable. As far as Google was concerned, that key didn't belong to any known account.
+
+**Fix:** issued a new key under a new service account and updated the Vercel environment variable via a Node.js script. Key file deleted immediately.
+
+**Lesson:** `account not found` doesn't mean "there is no such account" — it means "this key isn't associated with any known account." Without remembering that the key was deleted, the error is baffling.
+
+### ⑰ Opened the newly created folder and got "request access"
+
+The folder was created and shared with the entire `sparklabs.co.kr` domain — but `evanrkang09@gmail.com` is not on that domain, so it hit the "request access" wall.
+
+**Fix:** in addition to the domain permission (`type: "domain"`), individual user permissions (`type: "user"`) are now added for every address in `ALLOWED_EMAILS`. The "Open Drive" button silently reshares on every click, so adding a new exception email later takes effect on the next click with no other change needed.
+
+**Lesson:** a domain share only covers accounts on that domain. Gmail addresses and other external accounts need their own individual permissions.
+
+### ⑱ The email send button did nothing — three rounds of fixes
+
+Clicking "Send email" produced no response at all. It took three separate fixes to reach something that worked.
+
+1. **`window.location.href = mailto:`** → browsers block this. Fix: create a `<a>` element dynamically and click it.
+2. **Dynamic `<a>` click** → still nothing. Cause: a long email body pushes the `mailto:` URL past the ~2,000-character limit and browsers silently discard it. Fix: remove the body from the URL, copy it to the clipboard instead.
+3. **No mail client opens at all** → if no default mail client is configured, `mailto:` fails silently. Fix: replace `mailto:` with a Gmail compose URL (`https://mail.google.com/mail/?view=cm&fs=1&to=...&su=...`) opened via `window.open`, with the body on the clipboard for one paste into Gmail.
+
+**Lesson:** "no response" had three overlapping causes — browser policy, URL length, and no default app configured. Each fix exposed the next layer. Keep digging; "still doesn't work" just means there's another cause underneath.
+
 ---
 
 ## 5. How the AI model was chosen
@@ -461,6 +489,8 @@ The change was entirely internal to `lib/openrouter.ts` (the file kept its name 
 
 **→ Deleted 2026-08-13.** The value still sitting in the log file now opens nothing.
 
+**→ New key issued 2026-08-19.** Adding the per-company Drive folder feature meant the service account was needed again. A new key was issued under `sparkbotnew@sparklabs-doc-tracker.iam.gserviceaccount.com`, with the scope upgraded from `drive.readonly` to full `drive` — creating folders and setting permissions requires write access. The JSON key file was uploaded to the Vercel environment variable via a Node.js script and deleted immediately. As with the OpenRouter key, the value never passed through the chat.
+
 **The lesson — and we avoided it the second time.** When the OpenRouter key arrived a few days later, the handling changed: the key was never typed into the chat at all. It went **straight into Notepad and the Vercel dashboard by hand**, and when the variable *name* needed checking, each line was split at the `=` and **only the left-hand side** printed. Verified result: **zero** occurrences of the OpenRouter key in the log.
 
 > **Rule: name the file the key goes in. Never ask for the value, and never print it.**
@@ -567,8 +597,61 @@ The mentor's requirement: **only SparkLabs employees get in.** My question was "
 - [x] 회사 block confirmed by mentor (§10-3)
 - [x] Pushed to GitHub
 
-**Remaining:**
+**Week 3 additions:**
 
+- [x] SAFE contract interested-party appendix fields — 별지1 shareholder consent + 별지3 employment restriction / non-compete (tokens s27–s33, overlapping: one input field fills multiple places in the document at once)
+- [x] Per-company Google Drive folder creation — a separate folder for each deal, shared with the sparklabs.co.kr domain and individual Gmail exceptions, parent folder ID stored in Blob (`config/drive-config.json`)
+- [x] Google service account key replaced (`sparkbotnew@sparklabs-doc-tracker.iam.gserviceaccount.com`, full `drive` scope)
+- [x] Email send buttons — switched to Gmail compose URL (recipient + subject in URL, body copied to clipboard for pasting)
+- [x] AI assistant upgraded to dual-mode — answers general questions (company research, investment concepts, market info) as well as process questions
+
+**Week 4 additions (2026-08-25):**
+
+- [x] **Agreement editor orphan token fix** — tokens present in the `.docx` template (e.g. `f42`, `r70`) but not registered as a named `AgreementField` were highlighted in the document preview but had no sidebar input and weren't filled on download. Fixed in three places at once: (1) a plain-text input appears in the sidebar for every orphan token, (2) values flow into the live preview, (3) values are written into the downloaded `.docx`.
+- [x] **SAFE tab separated and fully redesigned** — SAFE was moved off the main CPS/RCPS tab strip (too easy to land on by accident) and replaced with a distinct violet `⚡ SAFE +` button. Selecting it swaps in a brand-new `safe-panel.tsx` instead of the generic field list. Features: a live investment-summary header (amount / valuation cap / discount rate), a conversion simulator (cap path vs. discount path, highlights whichever gives the investor more shares), and 8 collapsible sections arranged by analytical priority (core terms / payment / parties / interested party / signing date / non-compete / signature blocks / standard terms).
+- [x] **Due diligence screen major overhaul** — every item was previously always fully expanded, making the page overwhelming. Key changes:
+  - **Collapsible items** — collapsed by default, showing a one-line summary (status badge, source ref, doc pills, verified date, memo/comment indicators). Click to expand the full detail.
+  - **Filter bar** — All / Issues / Blocked / Unchecked / Done, each showing a live count.
+  - **Four stat cards** — Checked, AI Coverage, Issues Found, Docs Missing, visible at a glance above the list.
+  - **Bulk "Accept AI-cleared"** — one button marks every AI-verified item as checked without clicking 15 checkboxes.
+  - **Per-item AI re-run** — a "Re-analyse" button inside each expanded item runs the analysis for that one item only.
+  - **Comment count badge** — collapsed items show a 💬 N badge so you can see where discussion is happening without opening every card.
+  - **Expand all / Collapse all** controls.
+- [x] **Overview page redesigned** — replaced the plain `max-w-3xl` card list with:
+  - Wider `max-w-4xl` layout.
+  - **Overall health badge** in the header — green when all stages are done, amber with a count when anything needs attention.
+  - **Attention alert box** that lists specific blockers (missing docs, remaining DD checks, overdue deadline) with direct links to each section.
+  - Stage cards with color-coded left borders, icons, progress bars with percentage labels. The execution card turns red-bordered when the 30-day deadline is overdue.
+- [x] **Security audit** — ran an automated audit across all API routes and auth code (discover → 3 parallel audit agents → adversarial verify pass per finding). 29 confirmed vulnerabilities (Critical 3, High 16, Medium 7, Low 3).
+- [x] **Security fixes applied** — all confirmed findings addressed. Key changes:
+  - `proxy.ts`: narrowed startup API access from a broad wildcard to an explicit allowlist (status, files, agreement only)
+  - `upload/route.ts`: fixed IDOR allowing a startup to upload into any other company's folder
+  - `diligence`, `analysis`, `stage-review`, `classify`, `unzip` routes: added auth, blocked startup role
+  - `execution/route.ts`, `conversion/route.ts`: blocked startup from overwriting VC-set financial records
+  - `agreement/route.ts`: added GET auth, fixed IDOR, applied a field allowlist so startups can only write company info (name, address, representative, notices — not investment amounts or terms)
+  - `comments/route.ts`: blocked startup from reading analyst due-diligence comments
+  - `execution/oi-files`, `execution/post-files`: added auth, blocked startup, fixed docId path-traversal vulnerability
+  - `batches/[batchId]/route.ts`: added auth gate
+  - `messages/route.ts`: added 4000-character message length limit
+  - `assistant/route.ts`: added auth, blocked startup from loading another company's deal context
+- [x] **Production redeploy after security fixes** — https://sparklabs-doc-tracker.vercel.app (2026-08-25)
+
+**Late week 4 / week 5 additions (2026-08-28):**
+
+- [x] **Company-side editing 500 error fixed** — startup users got a 500 every time they tried to save their section of the agreement. Root cause: the agreement PUT route did `const { values }` and then tried to reassign `values`, which JavaScript forbids at runtime even though TypeScript lets it through. Fixed by introducing `let valuesToSave` so the filtered write path doesn't touch the original binding.
+- [x] **Sticky company nav bar** — the green SparkLabs header for startup-role users was scrolling away as the contract was scrolled. Added `sticky top-0 z-10` to `app/startup-nav-bar.tsx`.
+- [x] **English default language** — the page was flashing Korean on load before the language switcher could run. Changed the `useState` default from `"ko"` to `"en"` in `app/lang-provider.tsx` and changed `lang="ko"` to `lang="en"` on the `<html>` element in `app/layout.tsx`.
+- [x] **Google Docs-style inline comments** — selecting any text in the contract now shows a floating bubble above the selection with a "💬 Comment" button. Clicking opens a floating popover for typing the comment (no page scroll, no sidebar interaction required). Comments are anchored to their paragraph via `blockKey`, the paragraph gets a yellow highlight, and a 💬 badge appears in the right margin showing the count. Clicking the badge pops up a floating card showing the comment text, author, and date. All panels are dismissed on outside-click, and `onMouseDown={e.preventDefault()}` keeps the selection alive while interacting with the bubble.
+- [x] **Company-side save button and comment list restored** — an earlier rebuild of the startup sidebar accidentally dropped both the Save button from the toolbar and the comments section from the sidebar. Both restored.
+- [x] **Paragraph suggestion system (company → SparkLabs, full inline review)** — the company (startup) user can now select any text in the contract — clause text, not just named fields — and propose a replacement. Full flow:
+  - Selecting text shows the floating bubble with "✏️ Suggest edit" alongside the Comment button. For named-field tokens this opens the existing field-value suggestion form; for plain paragraph text it opens a new paragraph-suggestion form showing the original selected text and a "Replace with:" textarea.
+  - Submitting creates a `blockKey`-keyed suggestion stored in `agreement-suggestions/<dealId>.json` (the same store used for field suggestions, now extended with optional `blockKey / selectedText / proposedText` fields alongside the existing `fieldId / proposedValue` fields).
+  - The paragraph immediately gains an orange left border and a ✏️ badge in the right margin to signal a pending change.
+  - **Employee view**: an inline review zone appears directly below the paragraph in the contract showing the original text struck through, the proposed replacement in orange, and Accept / Reject buttons. Accepting gets the paragraph's current rendered text from the DOM, applies a find-replace, and saves the result as a `overrides[blockKey]` entry — the same override mechanism used when employees manually edit clauses. The approval API route was updated to accept `overrideText` from the client so the server can persist the change in one step.
+  - The employee sidebar also gains a "Paragraph changes suggested" section listing all pending paragraph suggestions with Approve / Reject buttons, as a fallback when the inline zone is hard to find in a long document.
+  - The company's "Pending suggestions" list in their sidebar now shows both field suggestions and paragraph suggestions, each labelled differently, with a Retract button for each.
+
+**Remaining:**
 - [ ] Obtain the internal 예비실사 체크리스트 standard form and fold it in
 - [ ] Wire in a conversion service if a byte-identical PDF is required (§10)
 - [ ] Delete the old `OPENROUTER_API_KEY` from the Vercel dashboard (replaced by `GOOGLE_AI_API_KEY`)

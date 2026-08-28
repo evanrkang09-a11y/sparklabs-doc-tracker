@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { FUNDS } from "@/lib/funds";
 import { useLang } from "./lang-provider";
 
@@ -29,6 +30,8 @@ export default function AppSidebar() {
   const { lang, both } = useLang();
   const ko = lang === "ko";
   const pathname = usePathname();
+  const { data: session } = useSession();
+  const isAdmin = session?.user?.role === "admin";
 
   const [deals, setDeals] = useState<SidebarDeal[]>([]);
   const [manualOpen, setManualOpen] = useState<Record<string, boolean>>({});
@@ -68,10 +71,11 @@ export default function AppSidebar() {
     { href: `/deal/${id}`, label: ko ? "서류 수집" : "Documents" },
     { href: `/diligence/${id}`, label: ko ? "서류 실사" : "Diligence" },
     { href: `/agreement/${id}`, label: ko ? "계약서 작성" : "Agreement" },
+    { href: `/execution/${id}`, label: ko ? "투자 집행" : "Execution" },
   ];
 
   return (
-    <nav className="fixed top-0 left-0 z-30 hidden h-screen w-56 overflow-y-auto border-r border-neutral-200 bg-white lg:block dark:border-neutral-800 dark:bg-neutral-950 print:hidden">
+    <nav className="fixed top-0 left-0 z-30 hidden h-screen w-72 overflow-y-auto border-r border-neutral-200 bg-white lg:block dark:border-neutral-800 dark:bg-neutral-950 print:hidden">
       <Link
         href="/"
         className="flex items-center gap-2 border-b border-neutral-200 px-4 py-3.5 dark:border-neutral-800"
@@ -150,6 +154,43 @@ export default function AppSidebar() {
           ))}
         </ul>
       </div>
+
+      <div className="border-t border-neutral-200 px-3 py-3 dark:border-neutral-800">
+        <Link
+          href="/zip-archive"
+          className={`flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+            pathname === "/zip-archive"
+              ? "bg-neutral-100 text-neutral-900 dark:bg-neutral-800 dark:text-white"
+              : "text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-white"
+          }`}
+        >
+          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-neutral-200 text-[11px] dark:bg-neutral-700">
+            📦
+          </span>
+          {ko ? "계약서 ZIP 모음" : "Contract ZIPs"}
+        </Link>
+      </div>
+
+      {isAdmin && (
+        <div className="border-t border-neutral-200 px-3 py-4 dark:border-neutral-800">
+          <Link
+            href="/admin"
+            className={`flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors ${
+              pathname === "/admin"
+                ? "bg-amber-500 text-white shadow-sm"
+                : "bg-amber-50 text-amber-800 hover:bg-amber-100 dark:bg-amber-950/50 dark:text-amber-300 dark:hover:bg-amber-950/80"
+            }`}
+          >
+            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-amber-500 text-[11px] text-white shadow-sm">
+              ⚙
+            </span>
+            {ko ? "관리자 패널" : "Admin Panel"}
+            <span className="ml-auto rounded-full bg-amber-200 px-1.5 py-0.5 text-[10px] font-bold text-amber-800 dark:bg-amber-900 dark:text-amber-300">
+              ADMIN
+            </span>
+          </Link>
+        </div>
+      )}
     </nav>
   );
 }

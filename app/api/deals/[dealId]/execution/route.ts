@@ -48,7 +48,10 @@ export async function PUT(
   }
 
   const session = await auth();
-  const updatedBy = session?.user?.email ?? null;
+  if (!session?.user || session.user.role === "startup") {
+    return Response.json({ error: "Forbidden" }, { status: 403 });
+  }
+  const updatedBy = session.user.email ?? null;
 
   try {
     // The store sanitises, so an unexpected field is dropped rather than trusted.

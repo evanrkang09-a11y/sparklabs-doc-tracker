@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 /**
  * Draws the contract the way Word does.
@@ -14,12 +14,15 @@
  * document of record.
  */
 
-import { memo } from "react";
+import { memo, useState } from "react";
 import type { Block, DocxLayout, Paragraph, Run, Table } from "@/lib/docx-layout";
 import { FIELD_BY_TOKEN } from "@/lib/agreement-fields";
 
 /** Which slot the contract is scrolled to, and which field it belongs to. */
 export type ActiveSlot = { fieldId: string; token: string } | null;
+
+type AnnotationMark = { id: string; comment: string; authorName: string };
+type ParagraphSuggestionMark = { id: string; selectedText: string; proposedText: string; authorName: string };
 
 type Context = {
   /** Token -> the value typed for it. Missing means still empty. */
@@ -27,6 +30,31 @@ type Context = {
   active: ActiveSlot;
   /** Reads a field's label in the language the page is in. */
   label: (token: string) => string;
+  /** User-written overrides for plain-text paragraphs, keyed by block index. */
+  overrides?: Record<string, string>;
+  /** Called when the user finishes editing a plain-text paragraph. */
+  onParagraphEdit?: (key: string, text: string) => void;
+  /**
+   * fieldId → proposed value for pending company suggestions.
+   * When present, the slot is highlighted in orange and shows the proposed value
+   * so the employee can see what the document would look like if approved.
+   */
+  pendingSuggestions?: Record<string, string>;
+  /**
+   * blockKey → annotations anchored to that paragraph.
+   * Paragraphs with entries get a yellow highlight and a 💬 marker in the right margin.
+   */
+  annotationsByBlock?: Record<string, AnnotationMark[]>;
+  /**
+   * blockKey → pending paragraph text suggestion from the startup.
+   * Employee view shows an inline review zone; startup view shows an orange tint.
+   */
+  paragraphSuggestionsByBlock?: Record<string, ParagraphSuggestionMark>;
+  /**
+   * Called when an employee accepts or rejects a paragraph suggestion.
+   * Presence signals the employee view — startup view leaves this undefined.
+   */
+  onParagraphSuggestionAction?: (id: string, action: "approve" | "reject") => void;
 };
 
 export default function ContractView({
@@ -55,23 +83,32 @@ export default function ContractView({
         tabSize: 4,
       }}
     >
-      <Blocks blocks={layout.blocks} context={context} />
+      <Blocks blocks={layout.blocks} context={context} keyPrefix="" />
     </div>
   );
 }
 
-function Blocks({ blocks, context }: { blocks: Block[]; context: Context }) {
+function Blocks({
+  blocks,
+  context,
+  keyPrefix,
+}: {
+  blocks: Block[];
+  context: Context;
+  keyPrefix?: string;
+}) {
   return (
     <>
       {blocks.map((block, at) =>
         block.kind === "table" ? (
-          <TableView key={at} table={block} context={context} />
+          <TableView key={at} table={block} context={context} keyPrefix={keyPrefix} at={at} />
         ) : (
           <ParagraphView
             key={at}
             paragraph={block}
             context={context}
-            signature={signatureOf(block, context)}
+            signature={signatureOf(block, context, keyPrefix !== undefined ? `${keyPrefix}${at}` : undefined)}
+            blockKey={keyPrefix !== undefined ? `${keyPrefix}${at}` : undefined}
           />
         ),
       )}
@@ -86,15 +123,24 @@ function Blocks({ blocks, context }: { blocks: Block[]; context: Context }) {
  * possibly have altered. Without it every keystroke re-renders the whole
  * contract, which is 650 paragraphs and 2,000-odd spans of layout work.
  */
-function signatureOf(paragraph: Paragraph, { replacements, active }: Context): string {
+function signatureOf(paragraph: Paragraph, context: Context, blockKey?: string): string {
+  const { replacements, active, pendingSuggestions, annotationsByBlock, paragraphSuggestionsByBlock } = context;
   let out = "";
 
   for (const run of paragraph.runs) {
     if (!run.token) continue;
-
     out += `|${run.token}=${replacements[run.token] ?? ""}`;
     if (run.token === active?.token) out += "#here";
     else if (FIELD_BY_TOKEN[run.token]?.id === active?.fieldId) out += "#near";
+    const fieldId = FIELD_BY_TOKEN[run.token]?.id ?? run.token;
+    if (pendingSuggestions?.[fieldId]) out += `#sug=${pendingSuggestions[fieldId]}`;
+  }
+
+  if (blockKey) {
+    const anns = annotationsByBlock?.[blockKey];
+    if (anns?.length) out += `#ann=${anns.length}`;
+    const paraSug = paragraphSuggestionsByBlock?.[blockKey];
+    if (paraSug) out += `#parasug=${paraSug.id}`;
   }
 
   return out;
@@ -104,11 +150,13 @@ const ParagraphView = memo(
   function ParagraphView({
     paragraph,
     context,
+    blockKey,
   }: {
     paragraph: Paragraph;
     context: Context;
     /** Compared instead of `context`, which is a new object every keystroke. */
     signature: string;
+    blockKey?: string;
   }) {
     const { runs, marker } = paragraph;
     const hanging = paragraph.firstLinePt !== undefined && paragraph.firstLinePt < 0;
@@ -119,53 +167,179 @@ const ParagraphView = memo(
     // blank line still carries the spacing set on it.
     const blank = runs.length === 0 && !marker;
 
+    const hasTokens = runs.some((r) => r.token);
+    const canEdit = !hasTokens && !blank && !!blockKey && !!context.onParagraphEdit;
+    const anns = blockKey ? (context.annotationsByBlock?.[blockKey] ?? []) : [];
+    const paraSug = blockKey ? (context.paragraphSuggestionsByBlock?.[blockKey] ?? null) : null;
+    const canReviewParaSug = !!context.onParagraphSuggestionAction;
+
+    const [editing, setEditing] = useState(false);
+    const [draft, setDraft] = useState("");
+
+    function startEdit() {
+      if (!canEdit || !blockKey) return;
+      const existingOverride = context.overrides?.[blockKey];
+      const current =
+        existingOverride !== undefined
+          ? existingOverride
+          : runs.map((r) => r.text ?? "").join("");
+      setDraft(current);
+      setEditing(true);
+    }
+
+    function finishEdit() {
+      if (!blockKey) return;
+      context.onParagraphEdit!(blockKey, draft);
+      setEditing(false);
+    }
+
+    const pStyle = {
+      margin: 0,
+      marginTop: paragraph.spaceBeforePt ? `${paragraph.spaceBeforePt}pt` : undefined,
+      marginBottom: paragraph.spaceAfterPt ? `${paragraph.spaceAfterPt}pt` : undefined,
+      textAlign: paragraph.align,
+      paddingLeft: paragraph.indentPt ? `${paragraph.indentPt}pt` : undefined,
+      textIndent: paragraph.firstLinePt ? `${paragraph.firstLinePt}pt` : undefined,
+      lineHeight: paragraph.lineHeight,
+      whiteSpace: "pre-wrap" as const,
+    };
+
+    const override = blockKey ? context.overrides?.[blockKey] : undefined;
+
     return (
       <>
         {paragraph.pageBreak && <PageBreak />}
-        <p
-          style={{
-            margin: 0,
-            marginTop: paragraph.spaceBeforePt ? `${paragraph.spaceBeforePt}pt` : undefined,
-            marginBottom: paragraph.spaceAfterPt ? `${paragraph.spaceAfterPt}pt` : undefined,
-            textAlign: paragraph.align,
-            paddingLeft: paragraph.indentPt ? `${paragraph.indentPt}pt` : undefined,
-            textIndent: paragraph.firstLinePt ? `${paragraph.firstLinePt}pt` : undefined,
-            lineHeight: paragraph.lineHeight,
-            whiteSpace: "pre-wrap",
-          }}
-        >
-          {marker && (
-            <span
+        {editing && canEdit ? (
+          <textarea
+            autoFocus
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={finishEdit}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") finishEdit();
+            }}
+            style={{
+              ...pStyle,
+              width: "100%",
+              display: "block",
+              resize: "none",
+              border: "none",
+              outline: "2px solid #3b82f6",
+              borderRadius: "2px",
+              background: "#eff6ff",
+              padding: "2px",
+              fontFamily: "inherit",
+              fontSize: "inherit",
+              color: "inherit",
+            }}
+            rows={Math.max(1, draft.split("\n").length)}
+          />
+        ) : (
+          <div style={{ position: "relative" }}>
+            <p
+              data-blockkey={blockKey}
+              onClick={canEdit ? startEdit : undefined}
               style={{
-                fontSize: paragraph.markerSizePt ? `${paragraph.markerSizePt}pt` : undefined,
-                // A hanging indent exists so the number sits in the margin and
-                // the text lines up past it. Filling that width puts the text
-                // where Word puts it rather than one space after the number.
-                //
-                // min-width, not width: "제1조" is wider than its 20pt hanging
-                // indent, and a fixed width would let the clause text run back
-                // over the top of it. Word moves the text along to the next tab
-                // stop instead, so this keeps a small gap and does the same.
-                display: hanging ? "inline-block" : undefined,
-                boxSizing: "border-box",
-                minWidth: hanging ? `${-(paragraph.firstLinePt ?? 0)}pt` : undefined,
-                paddingRight: hanging ? "3pt" : undefined,
+                ...pStyle,
+                ...(paraSug
+                  ? { backgroundColor: "rgba(251,146,60,0.15)", borderLeft: "3px solid rgba(251,146,60,0.6)", paddingLeft: "6px", borderRadius: "2px" }
+                  : anns.length > 0
+                    ? { backgroundColor: "rgba(253,224,71,0.25)", borderRadius: "2px" }
+                    : {}),
               }}
+              className={
+                canEdit
+                  ? "cursor-text rounded hover:outline hover:outline-2 hover:outline-blue-300"
+                  : undefined
+              }
+              title={canEdit ? "Click to edit" : undefined}
             >
-              {marker}
-              {hanging ? "" : " "}
-            </span>
-          )}
+              {marker && (
+                <span
+                  style={{
+                    fontSize: paragraph.markerSizePt
+                      ? `${paragraph.markerSizePt}pt`
+                      : undefined,
+                    display: hanging ? "inline-block" : undefined,
+                    boxSizing: "border-box",
+                    minWidth: hanging ? `${-(paragraph.firstLinePt ?? 0)}pt` : undefined,
+                    paddingRight: hanging ? "3pt" : undefined,
+                  }}
+                >
+                  {marker}
+                  {hanging ? "" : " "}
+                </span>
+              )}
 
-          {blank
-            ? " "
-            : runs.map((run, at) => <RunView key={at} run={run} context={context} />)}
-        </p>
+              {blank
+                ? " "
+                : override !== undefined
+                  ? override
+                  : runs.map((run, at) => <RunView key={at} run={run} context={context} />)}
+            </p>
+
+            {/* ✏️ paragraph suggestion marker — right margin, orange */}
+            {paraSug && (
+              <span
+                style={{ position: "absolute", right: "-28px", top: "1px" }}
+                className="flex h-5 w-5 items-center justify-center rounded-full bg-orange-400 text-[9px] font-bold text-orange-900 shadow-sm print:hidden"
+                title={`${paraSug.authorName}: "${paraSug.selectedText}" → "${paraSug.proposedText}"`}
+              >
+                ✏
+              </span>
+            )}
+
+            {/* 💬 annotation marker — sits in the right margin, outside the paragraph text */}
+            {anns.length > 0 && (
+              <button
+                type="button"
+                data-ann-btn
+                data-annotation-ids={anns.map((a) => a.id).join(",")}
+                style={{ position: "absolute", right: paraSug ? "-52px" : "-28px", top: "1px" }}
+                className="flex h-5 w-5 items-center justify-center rounded-full bg-yellow-400 text-[9px] font-bold text-yellow-900 shadow-sm hover:bg-yellow-500 print:hidden"
+                title={anns.map((a) => `${a.authorName}: ${a.comment}`).join("\n")}
+              >
+                {anns.length}
+              </button>
+            )}
+
+            {/* Inline suggestion review zone — employees only */}
+            {paraSug && canReviewParaSug && (
+              <div className="mt-1 rounded-md border border-orange-200 bg-orange-50 px-2.5 py-2 text-[11px] print:hidden">
+                <p className="font-medium text-orange-700">{paraSug.authorName} suggests changing:</p>
+                <p className="mt-0.5 text-neutral-500 line-through leading-snug">&ldquo;{paraSug.selectedText}&rdquo;</p>
+                <p className="mt-0.5 font-medium text-orange-900 leading-snug">&ldquo;{paraSug.proposedText}&rdquo;</p>
+                <div className="mt-2 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => context.onParagraphSuggestionAction!(paraSug.id, "approve")}
+                    className="rounded bg-emerald-600 px-2 py-0.5 text-[10px] font-medium text-white hover:bg-emerald-700"
+                  >
+                    Accept
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => context.onParagraphSuggestionAction!(paraSug.id, "reject")}
+                    className="rounded border border-neutral-300 px-2 py-0.5 text-[10px] hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-800"
+                  >
+                    Reject
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </>
     );
   },
   (before, after) =>
-    before.paragraph === after.paragraph && before.signature === after.signature,
+    before.paragraph === after.paragraph &&
+    before.signature === after.signature &&
+    before.blockKey === after.blockKey &&
+    before.context.overrides === after.context.overrides &&
+    before.context.pendingSuggestions === after.context.pendingSuggestions &&
+    before.context.paragraphSuggestionsByBlock === after.context.paragraphSuggestionsByBlock &&
+    before.context.onParagraphSuggestionAction === after.context.onParagraphSuggestionAction,
 );
 
 function RunView({ run, context }: { run: Run; context: Context }) {
@@ -181,35 +355,54 @@ function RunView({ run, context }: { run: Run; context: Context }) {
     return <span style={style}>{run.text}</span>;
   }
 
-  const { replacements, active, label } = context;
+  const { replacements, active, label, pendingSuggestions } = context;
   const value = replacements[run.token];
   const here = active?.token === run.token;
   const near = !here && FIELD_BY_TOKEN[run.token]?.id === active?.fieldId;
+  const fieldId = FIELD_BY_TOKEN[run.token]?.id ?? run.token;
+  const suggestedValue = pendingSuggestions?.[fieldId];
 
   return (
     <span
       data-token={run.token}
-      title={`{{${run.token}}} · ${label(run.token)}`}
+      title={
+        suggestedValue
+          ? `Suggested: "${suggestedValue}"`
+          : `{{${run.token}}} · ${label(run.token)}`
+      }
       style={style}
       className={
         here
           ? "rounded bg-yellow-300 px-0.5 ring-2 ring-yellow-500 print:bg-transparent print:ring-0"
           : near
             ? "rounded bg-yellow-100 px-0.5 print:bg-transparent"
-            : value === undefined
-              ? "rounded border border-dashed border-neutral-400 px-1 text-neutral-500"
-              : ""
+            : suggestedValue
+              ? "rounded bg-orange-200 px-0.5 ring-1 ring-orange-400 print:bg-transparent print:ring-0"
+              : value === undefined
+                ? "rounded border border-dashed border-neutral-400 px-1 text-neutral-500"
+                : ""
       }
     >
-      {/* An empty slot shows what belongs there. The .docx keeps the literal
-          {{f27}}, which is what you want in a file, not on a screen. */}
-      {value ?? label(run.token)}
+      {/* Pending suggestion: show the proposed value so the employee sees what would change. */}
+      {suggestedValue ?? value ?? label(run.token)}
     </span>
   );
 }
 
-function TableView({ table, context }: { table: Table; context: Context }) {
+function TableView({
+  table,
+  context,
+  keyPrefix,
+  at,
+}: {
+  table: Table;
+  context: Context;
+  keyPrefix?: string;
+  at?: number;
+}) {
   const border = table.bordered ? "1px solid #999" : undefined;
+  const tableKeyBase =
+    keyPrefix !== undefined && at !== undefined ? `${keyPrefix}${at}.` : undefined;
 
   return (
     <table
@@ -221,11 +414,11 @@ function TableView({ table, context }: { table: Table; context: Context }) {
       }}
     >
       <tbody>
-        {table.rows.map((row, at) => (
-          <tr key={at}>
-            {row.map((cell, index) => (
+        {table.rows.map((row, rowAt) => (
+          <tr key={rowAt}>
+            {row.map((cell, cellAt) => (
               <td
-                key={index}
+                key={cellAt}
                 colSpan={cell.span > 1 ? cell.span : undefined}
                 style={{
                   border,
@@ -234,7 +427,15 @@ function TableView({ table, context }: { table: Table; context: Context }) {
                   verticalAlign: "top",
                 }}
               >
-                <Blocks blocks={cell.blocks} context={context} />
+                <Blocks
+                  blocks={cell.blocks}
+                  context={context}
+                  keyPrefix={
+                    tableKeyBase !== undefined
+                      ? `${tableKeyBase}${rowAt}_${cellAt}.`
+                      : undefined
+                  }
+                />
               </td>
             ))}
           </tr>
